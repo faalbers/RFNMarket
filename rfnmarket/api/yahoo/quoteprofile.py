@@ -42,27 +42,7 @@ class QuoteProfile(Base):
                         'timeout': 30,
                     }
                     requestArgsList.append(requestArgs)
-        # responseDataList = self.multiRequest(requestArgsList, blockSize=100)
         self.multiRequest(requestArgsList, blockSize=100)
-
-        # # create user data
-        # data = {}
-        # if responseDataList == None: return
-        # indexSymbol = 0
-        # for symbol in symbols:
-        #     symbolData = responseDataList[indexSymbol]
-        #     indexSymbol += 1
-        #     if symbolData == None:
-        #         continue
-        #     symbolData = symbolData['quoteSummary']
-        #     if symbolData['result'] == None: continue
-        #     symbolData = symbolData['result'][0]
-        #     data[symbol] = symbolData
-        #     data[symbol]['timestamp'] = int(datetime.now().timestamp())
-        #     # pp(symbolData)
-        
-        # for db in self.databases:
-        #     db.updateYahooQuoteSummary(data)
 
     def pushAPIData(self, symbolIndex, symbolData):
         symbol = self.symbols[symbolIndex]
@@ -72,4 +52,4 @@ class QuoteProfile(Base):
         pushData = symbolData
         pushData['timestamp'] = int(datetime.now().timestamp())
         for db in self.databases:
-            db.updateYahooAPI(symbol, pushData)
+            db.updateYahooQuoteProfile(symbol, pushData)

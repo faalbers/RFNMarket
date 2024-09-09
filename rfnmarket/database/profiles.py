@@ -50,7 +50,7 @@ class Profiles():
         
         return lowTimestamp
 
-    def updateYahooAPI(self, symbol, symbolData):
+    def updateYahooQuoteProfile(self, symbol, symbolData):
         # update summaryProfile
         connection = sqlite3.connect('database/profiles.db')
         cursor = connection.cursor()
@@ -85,44 +85,5 @@ class Profiles():
         cursor.close()
         connection.close()
 
-    def updateYahooQuoteSummary(self, data):
-        # update summaryProfile
-        connection = sqlite3.connect('database/profiles.db')
-        cursor = connection.cursor()
-        cursor.execute("""CREATE TABLE IF NOT EXISTS 'summary' ( symbol TEXT PRIMARY KEY, timestamp INTEGER, 
-        name TEXT, type TEXT, exchange TEXT, industry TEXT, sector TEXT, country TEXT, city TEXT,
-        state TEXT, timezone TEXT, employees INTEGER, info TEXT)
-        """)
-        entryList = []
-        for symbol, symbolData in data.items():
-            timestamp = symbolData['timestamp']
-            dbParams = {}
-
-            if 'quoteType' in symbolData:
-                # spData = symbolData['summaryProfile']
-                mData = symbolData['quoteType']
-                mParams = {'name': 'longName', 'type': 'quoteType', 'exchange': 'exchange',
-                    'timezone': 'timeZoneShortName'}
-                for dbParam, mParam in mParams.items():
-                    if not mParam in mData:
-                        dbParams[dbParam] = None
-                    else:
-                        dbParams[dbParam] = mData[mParam]
-            if 'summaryProfile' in symbolData:
-                mData = symbolData['summaryProfile']
-                mParams = {'industry': 'industry', 'sector': 'sector', 'country': 'country', 'city': 'city',
-                    'state': 'state', 'employees': 'fullTimeEmployees', 'info': 'longBusinessSummary'}
-                for dbParam, mParam in mParams.items():
-                    if not mParam in mData:
-                        dbParams[dbParam] = None
-                    else:
-                        dbParams[dbParam] = mData[mParam]
-            entryList.append((symbol, timestamp, dbParams['name'], dbParams['type'], dbParams['exchange'],
-                dbParams['industry'], dbParams['sector'], dbParams['country'], dbParams['city'], dbParams['state'],
-                dbParams['timezone'], dbParams['employees'], dbParams['info']))
-        
-        cursor.executemany('INSERT OR IGNORE INTO "summary" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', entryList)
-
-        connection.commit()
-        cursor.close()
-        connection.close()
+    def updateYahooChart(self, symbol, symbolData):
+        pass

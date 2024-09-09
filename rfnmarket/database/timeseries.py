@@ -126,7 +126,10 @@ class TimeSeries():
 
         return lowTimestamp
 
-    def updateYahooAPI(self, symbol, symbolData):
+    def updateYahooQuoteProfile(self, symbol, symbolData):
+        pass
+
+    def updateYahooChart(self, symbol, symbolData):
         # update dividends
         connection = sqlite3.connect('database/timeseries_dividends.db')
         cursor = connection.cursor()
@@ -183,65 +186,3 @@ class TimeSeries():
         connection.commit()
         cursor.close()
         connection.close()
-
-    def updateYahooChart(self, data):
-        # update dividends
-        connection = sqlite3.connect('database/timeseries_dividends.db')
-        cursor = connection.cursor()
-
-        for symbol, symbolData in data.items():
-            for kind, kindData in symbolData.items():
-                if kind == 'events':
-                    for event, eventData in kindData.items():
-                        if event == 'dividends':
-                            if len(eventData) == 0: continue
-                            cursor.execute('CREATE TABLE IF NOT EXISTS "%s" (timestamp INTEGER PRIMARY KEY, amount FLOAT)' % symbol)
-                            entryList = []
-                            for timestamp, amount in eventData.items():
-                                entryList.append((timestamp, amount['amount']))
-                            cursor.executemany('INSERT OR IGNORE INTO "%s" (timestamp, amount) VALUES (?, ?)' % symbol, entryList)
-
-        connection.commit()
-        cursor.close()
-        connection.close()
-    
-        # update splits
-        connection = sqlite3.connect('database/timeseries_splits.db')
-        cursor = connection.cursor()
-
-        for symbol, symbolData in data.items():
-            for kind, kindData in symbolData.items():
-                if kind == 'events':
-                    for event, eventData in kindData.items():
-                        if event == 'splits':
-                            if len(eventData) == 0: continue
-                            cursor.execute('CREATE TABLE IF NOT EXISTS "%s" (timestamp INTEGER PRIMARY KEY, numerator FLOAT, denominator FLOAT, splitRatio TEXT)' % symbol)
-                            entryList = []
-                            for timestamp, item in eventData.items():
-                                entryList.append((timestamp, item['numerator'], item['denominator'], item['splitRatio']))
-                            cursor.executemany('INSERT OR IGNORE INTO "%s" VALUES (?, ?, ?, ?)' % symbol, entryList)
-
-        connection.commit()
-        cursor.close()
-        connection.close()
-    
-        # update price and volume
-        connection = sqlite3.connect('database/timeseries_price_volume.db')
-        cursor = connection.cursor()
-        
-        for symbol, symbolData in data.items():
-            for kind, kindData in symbolData.items():
-                if kind == 'indicators':
-                    for indicator, indicatorData in kindData.items():
-                        if indicator == 'quote':
-                            if len(indicatorData) == 0: continue
-                            cursor.execute('CREATE TABLE IF NOT EXISTS "%s" (timestamp INTEGER PRIMARY KEY, open FLOAT, close FLOAT, low FLOAT, high FLOAT, volume INTEGER)' % symbol)
-                            entryList = []
-                            for timestamp, quoteParamData in indicatorData.items():
-                                entryList.append((timestamp, quoteParamData['open'], quoteParamData['close'], quoteParamData['low'], quoteParamData['high'], quoteParamData['volume']))
-                            cursor.executemany('INSERT OR IGNORE INTO "%s" VALUES (?, ?, ?, ?, ?, ?)' % symbol, entryList)
-
-        connection.commit()
-        cursor.close()
-        connection.close()
-    

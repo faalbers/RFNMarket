@@ -48,51 +48,7 @@ class Chart(Base):
                         'timeout': 30,
                     }                      
                     requestArgsList.append(requestArgs)
-        # responseDataList = self.multiRequest(requestArgsList, blockSize=50)
         self.multiRequest(requestArgsList, blockSize=50)
-        
-        # # create user data
-        # data = {}
-        # if responseDataList == None: return
-        # indexSymbol = 0
-        # for symbol in symbols:
-        #     symbolData = responseDataList[indexSymbol]
-        #     indexSymbol += 1
-        #     if symbolData == None:
-        #         continue
-        #     symbolData = symbolData['chart']
-        #     if symbolData['result'] == None: continue
-        #     symbolData = symbolData['result'][0]
-        #     data[symbol] = {}
-        #     data[symbol]['timestamp'] = int(datetime.now().timestamp())
-        #     data[symbol]['meta'] = symbolData.pop('meta')
-        #     if 'timestamp' in symbolData:
-        #         timestamps = symbolData.pop('timestamp')
-        #         if 'indicators' in symbolData:
-        #             indicators = symbolData.pop('indicators')
-        #             data[symbol]['indicators'] = {}
-        #             for indicator, indicatorDataList in indicators.items():
-        #                 data[symbol]['indicators'][indicator] = {}
-        #                 indexTimestamp = 0
-        #                 for timestamp in timestamps:
-        #                     data[symbol]['indicators'][indicator][timestamp] = {}
-        #                     for indicatorData in indicatorDataList:
-        #                         for element, elementData in indicatorData.items():
-        #                             data[symbol]['indicators'][indicator][timestamp][element] = elementData[indexTimestamp]
-        #                     indexTimestamp += 1
-        #     if 'events' in symbolData:
-        #         events = symbolData.pop('events')
-        #         data[symbol]['events'] = {}
-        #         for event, eventData in events.items():
-        #             data[symbol]['events'][event] = {}
-        #             for key, eventEntry in eventData.items():
-        #                 data[symbol]['events'][event][eventEntry['date']] = {}
-        #                 for element, value in eventEntry.items():
-        #                     if element == 'date': continue
-        #                     data[symbol]['events'][event][eventEntry['date']][element] = value
-
-        # for db in self.databases:
-        #     db.updateYahooChart(data)
         
     def pushAPIData(self, symbolIndex, symbolData):
         symbol = self.symbols[symbolIndex]
@@ -128,4 +84,4 @@ class Chart(Base):
                         pushData['events'][event][eventEntry['date']][element] = value
         
         for db in self.databases:
-            db.updateYahooAPI(symbol, pushData)
+            db.updateYahooChart(symbol, pushData)
