@@ -28,7 +28,7 @@ class Tickers():
 
     @property
     def profile(self):
-        self.__dbEntries.add((database.Profiles, database.Profiles.getProfile, 'profile'))
+        self.__dbEntries.add((database.Profiles, database.Profiles.getProfiles, 'profile'))
 
     def getData(self, symbols, update=False, updateMax=False):
         dbObjects = {}

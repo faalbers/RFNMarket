@@ -63,13 +63,15 @@ class TimeSeries():
         data = {}
         for symbol in foundSymbols:
             data[symbol] = {}
-            for result in cursor.execute("SELECT * FROM '%s'" % symbol):
-                # data[symbol][result[0]] = result[1]
-                data[symbol][result[0]] = {}
-                data[symbol][result[0]]['open'] = result[1]
-                data[symbol][result[0]]['close'] = result[2]
-                data[symbol][result[0]]['low'] = result[3]
-                data[symbol][result[0]]['high'] = result[4]
+            foundData = cursor.execute("SELECT * FROM '%s'" % symbol)
+            columns = foundData.description
+            for items in foundData.fetchall():
+                data[symbol][items[0]] = {}
+                itemIndex = 1
+                for item in items[1:]:
+                    param = columns[itemIndex][0]
+                    data[symbol][items[0]][param] = item
+                    itemIndex += 1
         
         cursor.close()
         connection.close()

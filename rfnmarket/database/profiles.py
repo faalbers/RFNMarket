@@ -16,18 +16,21 @@ class Profiles():
         for apiModule in self._apiSet:
             apiModule(symbols, updateMax=updateMax)
 
-    def getProfile(self, symbols):
-        connection = sqlite3.connect('database/timeseries_dividends.db')
+    def getProfiles(self, symbols):
+        connection = sqlite3.connect('database/profiles.db')
         cursor = connection.cursor()
 
-        # cursor.execute("SELECT name FROM sqlite_schema WHERE type='table'")
-        # foundSymbols = set([x[0] for x in cursor.fetchall()]).intersection(set(symbols))
-
         data = {}
-        # for symbol in foundSymbols:
-        #     data[symbol] = {}
-        #     for result in cursor.execute("SELECT * FROM '%s'" % symbol):
-        #         data[symbol][result[0]] = result[1]
+        foundData = cursor.execute("SELECT * FROM 'summary'")
+        columns = foundData.description
+        for items in foundData.fetchall():
+            if not items[0] in symbols: continue
+            data[items[0]] = {}
+            itemIndex = 2
+            for item in items[2:]:
+                param = columns[itemIndex][0]
+                data[items[0]][param] = item
+                itemIndex += 1
 
         cursor.close()
         connection.close()
@@ -79,7 +82,7 @@ class Profiles():
             dbParams['industry'], dbParams['sector'], dbParams['country'], dbParams['city'], dbParams['state'],
             dbParams['timezone'], dbParams['employees'], dbParams['info'])
         
-        cursor.execute('INSERT OR IGNORE INTO "summary" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', entry)
+        cursor.execute('INSERT OR REPLACE INTO "summary" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', entry)
 
         connection.commit()
         cursor.close()
