@@ -1,92 +1,89 @@
 from ..api import yahoo
-from ..utils import log
+from ..utils import log, Database
 from datetime import datetime
 from pprint import pp
-
 import sqlite3
+
 
 class Profiles():
     def __init__(self):
-        # set db path
-        self._apiSet = set()
-        self._apiSet.add(yahoo.QuoteProfile)
+        db = Database('profiles')
+        db.addTable('summary', [
+            'symbol TEXT PRIMARY KEY',
+            'timestamp INTEGER',
+            'name TEXT',
+            'type TEXT',
+            'exchange TEXT',
+            'industry TEXT',
+            'sector TEXT',
+            'country TEXT',
+            'city TEXT',
+            'state TEXT',
+            'timezone TEXT',
+            'employees INTEGER',
+            'info TEXT',
+        ])
+        self.apiSet = set()
+        self.apiSet.add(yahoo.QuoteProfile)
 
     def update(self, symbols, updateMax=False):
         log.info('Update Profile database on %s symbols' % len(symbols))
-        for apiModule in self._apiSet:
+        for apiModule in self.apiSet:
             apiModule(symbols, updateMax=updateMax)
 
     def getProfiles(self, symbols):
-        connection = sqlite3.connect('database/profiles.db')
-        cursor = connection.cursor()
-
         data = {}
-        foundData = cursor.execute("SELECT * FROM 'summary'")
-        columns = foundData.description
-        for items in foundData.fetchall():
+
+        db = Database('profiles')
+        values, params = db.getRows('summary')
+        for items in values:
             if not items[0] in symbols: continue
             data[items[0]] = {}
             itemIndex = 2
             for item in items[2:]:
-                param = columns[itemIndex][0]
+                param = params[itemIndex]
                 data[items[0]][param] = item
                 itemIndex += 1
-
-        cursor.close()
-        connection.close()
         
         return data
-
-    def getLastLowestTimestamp(self, symbols):
+    
+    def getLowestTimestamp(self, symbols):
         lowTimestamp = int(datetime.now().timestamp())
+        foundSymbols = []
 
-        # check dividends
-        connection = sqlite3.connect('database/profiles.db')
-        cursor = connection.cursor()
-        
-        for result in cursor.execute("SELECT MAX(timestamp) FROM 'summary'"):
-            if result[0] < lowTimestamp:
-                lowTimestamp = result[0]
+        db = Database('profiles')
+        found = {}
+        values, params = db.getRows('summary', ['symbol', 'timestamp'])
+        for result in values:
+            found[result[0]] = result[1]
+        for symbol in symbols:
+            if not symbol in found: continue
+            foundSymbols.append(symbol)
+            if found[symbol] < lowTimestamp: lowTimestamp = found[symbol]
 
-        cursor.close()
-        connection.close()
-        
-        return lowTimestamp
+        return lowTimestamp, foundSymbols
 
     def updateYahooQuoteProfile(self, symbol, symbolData):
         # update summaryProfile
-        connection = sqlite3.connect('database/profiles.db')
-        cursor = connection.cursor()
-        cursor.execute("""CREATE TABLE IF NOT EXISTS 'summary' ( symbol TEXT PRIMARY KEY, timestamp INTEGER, 
-        name TEXT, type TEXT, exchange TEXT, industry TEXT, sector TEXT, country TEXT, city TEXT,
-        state TEXT, timezone TEXT, employees INTEGER, info TEXT)
-        """)
-
-        timestamp = symbolData['timestamp']
-        dbParams = {'name': None, 'type': None, 'exchange': None, 'timezone': None, 'industry': None, 'sector': None, 'country': None,
-            'city': None, 'state': None, 'employees': None, 'info': None}
+        params = ['symbol','timestamp']
+        values = [symbol,symbolData['timestamp']]
         if 'quoteType' in symbolData:
-            # spData = symbolData['summaryProfile']
             mData = symbolData['quoteType']
             mParams = {'name': 'longName', 'type': 'quoteType', 'exchange': 'exchange', 'timezone': 'timeZoneShortName'}
             for dbParam, mParam in mParams.items():
-                if mParam in mData: dbParams[dbParam] = mData[mParam]
+                if mParam in mData:
+                    params.append(dbParam)
+                    values.append(mData[mParam])
         if 'summaryProfile' in symbolData:
             mData = symbolData['summaryProfile']
             mParams = {'industry': 'industry', 'sector': 'sector', 'country': 'country', 'city': 'city', 'state': 'state',
                 'employees': 'fullTimeEmployees', 'info': 'longBusinessSummary'}
             for dbParam, mParam in mParams.items():
-                if mParam in mData: dbParams[dbParam] = mData[mParam]
-        
-        entry = (symbol, timestamp, dbParams['name'], dbParams['type'], dbParams['exchange'],
-            dbParams['industry'], dbParams['sector'], dbParams['country'], dbParams['city'], dbParams['state'],
-            dbParams['timezone'], dbParams['employees'], dbParams['info'])
-        
-        cursor.execute('INSERT OR REPLACE INTO "summary" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', entry)
-
-        connection.commit()
-        cursor.close()
-        connection.close()
+                if mParam in mData:
+                    params.append(dbParam)
+                    values.append(mData[mParam])
+        db = Database('profiles')
+        db.insertOrReplace('summary', params, tuple(values))
 
     def updateYahooChart(self, symbol, symbolData):
         pass
