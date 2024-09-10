@@ -17,8 +17,21 @@ class Database():
         cursor.execute(execString)
         cursor.close()
     
+    def getTableNames(self):
+        cursor = self.connection.cursor()
+
+        names = [ x[0] for x in cursor.execute("SELECT name FROM sqlite_schema WHERE type='table'")]
+
+        cursor.close()
+
+        return names
+
     def insertOrReplace(self, table=None, params=None, values=None):
-        if len(params) != len(values): return
+        if isinstance(values, tuple):
+            if len(params) != len(values): return
+        elif isinstance(values, list):
+            if len(params) != len(values[0]): return
+        else: return
 
         cursor = self.connection.cursor()
         execString = "INSERT OR REPLACE INTO '"+table+"'"
@@ -44,3 +57,14 @@ class Database():
 
         cursor.close
         return valuesFound, paramsFound
+
+    def getMaxValues(self, tables=None, params=None):
+        cursor = self.connection.cursor()
+
+        execString = "SELECT MAX("+"),MAX(".join(params)+") FROM '"
+        values = []
+        for table in tables:
+            values.append(cursor.execute(execString+table+"'").fetchall()[0])
+
+        cursor.close
+        return values
