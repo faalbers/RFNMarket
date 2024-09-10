@@ -7,21 +7,21 @@ from time import sleep
 from ratelimit import limits, sleep_and_retry
 
 class Base():
-    def __requestCall(self, requestArgs):
+    def requestCall(self, requestArgs):
         try:
-            response = self.__request.get(**requestArgs)
+            response = self.request.get(**requestArgs)
         except Exception:
-            log.exception('__requestCall')
+            log.exception('requestCall')
             return None
 
         return response
 
     @sleep_and_retry
     @limits(calls=150, period=60)
-    def __requestCallLimited(self, requestArgs):
-        return self.__requestCall(requestArgs)
+    def requestCallLimited(self, requestArgs):
+        return self.requestCall(requestArgs)
 
-    def __testValue(self):
+    def testValue(self):
         requestArgs = {
             'url': 'https://query2.finance.yahoo.com/v8/finance/chart/BBD',
             'params': {
@@ -32,7 +32,7 @@ class Base():
             'timeout': 30,
         }
         log.debug('**** run test ****')
-        response = self.__requestCallLimited(requestArgs)
+        response = self.requestCallLimited(requestArgs)
         if response != None:
             status_code = response.status_code
             if response.status_code == 200 and response.headers.get('content-type').startswith('application/json'):
@@ -40,7 +40,7 @@ class Base():
         log.debug('test did not return valid value')
         return None
 
-    def __initRequest(self):
+    def initRequest(self):
         yconfig = storage.get('database/yahoo')
         configRefresh = True
         if yconfig != None:
@@ -59,7 +59,7 @@ class Base():
             result = req.get(**requestArgs)
             cookie = list(result.cookies)
             if len(cookie) == 0:
-                self.__session = None
+                self.session = None
             cookie = cookie[0]
 
             # get authorization crumb
@@ -75,17 +75,17 @@ class Base():
         cookies = {yconfig['cookie'].name: yconfig['cookie'].value}
         params = {'crumb': yconfig['crumb']}
         headers = {'User-Agent': const.YAHOO_USER_AGENT}
-        # self.__request = Request(cookies=cookies, verbose=True, verboseContent=True,verboseOpenHTML=True)
-        self.__request = Request(params=params, cookies=cookies, headers=headers)
+        # self.request = Request(cookies=cookies, verbose=True, verboseContent=True,verboseOpenHTML=True)
+        self.request = Request(params=params, cookies=cookies, headers=headers)
 
     def __init__(self):
-        self.__initRequest()
+        self.initRequest()
 
     def multiRequest(self, requestArgsList, blockSize=50, limited=True):
         retryReqArgsIndices = range(len(requestArgsList))
         sleepTime = 60
         # check test value to make sure data is consistent
-        testValue = self.__testValue()
+        testValue = self.testValue()
         if testValue < 65:
             log.error('Initial test failed: No data returned')
             return None
@@ -103,7 +103,7 @@ class Base():
                     log.debug('Test Failed: wait %s seconds and retry' % sleepTime)
                     sleepTotal += sleepTime
                     sleep(sleepTime)
-                    newTestValue = self.__testValue()
+                    newTestValue = self.testValue()
                 if sleepTotal > 0:
                     log.debug('Test OK: Continued after %s seconds total wait' % sleepTotal)
                     for noneReqArgsIndex in lastBlockReqArgsIndices:
@@ -113,9 +113,9 @@ class Base():
                 log.debug('Still %s requests to do ...' % reqArgsIndicesCount)
                 for reqArgsIndex in blockReqArgsIndices:
                     if limited:
-                        response = self.__requestCallLimited(requestArgsList[reqArgsIndex])
+                        response = self.requestCallLimited(requestArgsList[reqArgsIndex])
                     else:
-                        response = self.__requestCall(requestArgsList[reqArgsIndex])
+                        response = self.requestCall(requestArgsList[reqArgsIndex])
                     reqArgsIndicesCount -= 1
                     if not response.status_code in statusCodes:
                         statusCodes[response.status_code] = 0
@@ -126,6 +126,6 @@ class Base():
                 for statusCode, scCount in statusCodes.items():
                     log.debug('got %s requests with status code: %s: %s' % (scCount, statusCode, apiconst.STATUS_CODES[statusCode]['short']))
                 # check test value after each block to make sure data is consistent
-                newTestValue = self.__testValue()
+                newTestValue = self.testValue()
             if len(retryReqArgsIndices) > 0:
                 log.debug('Retrying %s more requests that did not pass the test ...' % len(retryReqArgsIndices))

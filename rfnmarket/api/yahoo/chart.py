@@ -8,46 +8,45 @@ class Chart(Base):
         super().__init__()
         self.symbols = symbols
         self.databases = []
+        # add databases that need to be updated with new data found
         self.databases.append(database.TimeSeries())
 
         # select period 1 based on lowset end time stamps
         startTimestamp = int(datetime.now().timestamp())
-        if not updateMax:
-            for db in self.__databases:
-                timestamp = db.getLastLowestTimestamp(symbols)
-                if timestamp < startTimestamp:
-                    startTimestamp = timestamp
+        notFoundSymbols = set()
+        for db in self.databases:
+            timestamp, foundSymbols = db.getLowestTimestamp(self.symbols)
+            notFoundSymbols = notFoundSymbols.union(set(self.symbols).difference(set(foundSymbols)))
+            if timestamp < startTimestamp:
+                startTimestamp = timestamp
+        timeExpired = datetime.now() - datetime.fromtimestamp(startTimestamp)
+        notFoundSymbols = list(notFoundSymbols)
+        # print(timeExpired)
+        # print(notFoundSymbols)
 
-        # select period 1 based on lowset end time stamps
-        period1 = startTimestamp
-        period2 = int(datetime.now().timestamp())
-        interval = '1d'
-        
         # log.info('Running getCharts with range %s on intervals of %s with %s symbols' % (range, interval, len(symbols)))
         log.info('Running getCharts on %s symbols' % len(symbols))
+        period2 = int(datetime.now().timestamp())
+        interval = '1d'
         requestArgsList = []
-        if updateMax:
-            log.info('range: 10y')
-            requestArgsParams = {
-                'range': '10y',
-                'interval': interval,
-                'events': 'div,splits,capitalGains',
-            }
-        else:
-            log.info('period1: %s' % datetime.fromtimestamp(startTimestamp))
-            requestArgsParams = {
-                'period1': period1,
-                'period2': period2,
-                'interval': interval,
-                'events': 'div,splits,capitalGains',
-            }
         for symbol in symbols:
-                    requestArgs = {
-                        'url': 'https://query2.finance.yahoo.com/v8/finance/chart/'+symbol.upper(),
-                        'params': requestArgsParams,
-                        'timeout': 30,
-                    }                      
-                    requestArgsList.append(requestArgs)
+            if symbol in notFoundSymbols:
+                now = datetime.now()
+                period1 = int(datetime(year=now.year-10,month=now.month,day=now.day).timestamp())
+            else:
+                period1 = startTimestamp
+            # print('%s: %s: %s' % (symbol, datetime.fromtimestamp(period1), period1))
+            requestArgs = {
+                'url': 'https://query2.finance.yahoo.com/v8/finance/chart/'+symbol.upper(),
+                'params': {
+                    'period1': period1,
+                    'period2': period2,
+                    'interval': interval,
+                    'events': 'div,splits,capitalGains',
+                },
+                'timeout': 30,
+            }                      
+            requestArgsList.append(requestArgs)
         self.multiRequest(requestArgsList, blockSize=50)
         
     def pushAPIData(self, symbolIndex, symbolData):

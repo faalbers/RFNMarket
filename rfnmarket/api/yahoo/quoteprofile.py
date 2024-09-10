@@ -10,28 +10,41 @@ class QuoteProfile(Base):
         super().__init__()
         self.symbols = symbols
         self.databases = []
+        # add databases that need to be updated with new data found
         self.databases.append(database.Profiles())
 
-        # get lowest last time update. Should probably be updated quarterly
-        # startTimestamp = int(datetime.now().timestamp())
-        # if not updateMax:
-        #     for db in self.__databases:
-        #         timestamp = db.getLastLowestTimestamp(symbols)
-        #         if timestamp < startTimestamp:
-        #             startTimestamp = timestamp
-        # print(startTimestamp)
+        # from symbols found, get longest updated one
+        # get symbols that were not found
+        startTimestamp = int(datetime.now().timestamp())
+        notFoundSymbols = set()
+        for db in self.databases:
+            timestamp, foundSymbols = db.getLowestTimestamp(self.symbols)
+            notFoundSymbols = notFoundSymbols.union(set(self.symbols).difference(set(foundSymbols)))
+            if timestamp < startTimestamp:
+                startTimestamp = timestamp
+        timeExpired = datetime.now() - datetime.fromtimestamp(startTimestamp)
+        notFoundSymbols = list(notFoundSymbols)
+        # print(timeExpired)
+        # print(notFoundSymbols)
+
+        if timeExpired.days < (3*30):
+            if len(notFoundSymbols) > 0:
+                self.symbols = notFoundSymbols
+            else:
+                log.info('Quarterly QuoteProfile skipped')
+                return
 
         modules = ['quoteType', 'summaryProfile',]
         # modules = ['defaultKeyStatistics']
 
-        log.info('Running geQuoteProfile on %s symbols' % len(symbols))
+        log.info('Running geQuoteProfile on %s symbols quarterly' % len(self.symbols))
         modules = list(set(modules).intersection(const.YAHOO_QUOTE_SUMMARY_MODULES))
         if len(modules) == 0:
             log.error('Yahoo.getQuoteSummary: No valid modules selected. Use Yahoo.getQuoteProfileModules for valid ones.')
             return
         modules = ','.join(modules)
         requestArgsList = []
-        for symbol in symbols:
+        for symbol in self.symbols:
                     requestArgs = {
                         'url': 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/'+symbol.upper(),
                         'params': {
