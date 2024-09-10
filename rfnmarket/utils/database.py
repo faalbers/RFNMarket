@@ -14,16 +14,14 @@ class Database():
         cursor = self.connection.cursor()
         execString = "CREATE TABLE IF NOT EXISTS '"+table+"' "
         execString += " ("+",".join(params)+")"
+        # execString += " ("+",".join(["'"+x+"'" for x in params])+")"
         cursor.execute(execString)
         cursor.close()
     
     def getTableNames(self):
         cursor = self.connection.cursor()
-
         names = [ x[0] for x in cursor.execute("SELECT name FROM sqlite_schema WHERE type='table'")]
-
         cursor.close()
-
         return names
 
     def insertOrReplace(self, table=None, params=None, values=None):
@@ -35,7 +33,7 @@ class Database():
 
         cursor = self.connection.cursor()
         execString = "INSERT OR REPLACE INTO '"+table+"'"
-        execString += " ("+",".join(params)+")"
+        execString += " ("+",".join(["'"+x+"'" for x in params])+")"
         execString += " VALUES"
         execString += " ("+",".join(['?']*len(params))+")"
         if isinstance(values, tuple):
@@ -45,6 +43,8 @@ class Database():
         cursor.close
 
     def getRows(self, table=None, params=None):
+        if not table in self.getTableNames():
+            return [], []
         cursor = self.connection.cursor()
         if params == None:
             paramsString = "*"
