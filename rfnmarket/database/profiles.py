@@ -85,5 +85,3 @@ class Profiles():
         db = Database('profiles')
         db.insertOrReplace('summary', params, tuple(values))
 
-    def updateYahooChart(self, symbol, symbolData):
-        pass

@@ -70,7 +70,7 @@ class Statistics():
             "'SandP52WeekChange' FLOAT",
             
             "'maxAge' INTEGER",
-])
+        ])
         self.apiSet = set()
         self.apiSet.add(yahoo.QuoteStatistics)
 
@@ -134,8 +134,3 @@ class Statistics():
             #         params.append(dbParam)
             #         values.append(mData[mParam])
     
-    def updateYahooQuoteProfile(self, symbol, symbolData):
-        pass
-
-    def updateYahooChart(self, symbol, symbolData):
-        pass

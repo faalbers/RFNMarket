@@ -118,9 +118,6 @@ class TimeSeries():
         
         return lowTimestamp, list(foundSymbolsAll)
 
-    def updateYahooQuoteProfile(self, symbol, symbolData):
-        pass
-
     def updateYahooChart(self, symbol, symbolData):
         # update price and volume
         db = Database('timeseries_price_volume')        
