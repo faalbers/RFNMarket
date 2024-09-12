@@ -118,11 +118,14 @@ class Base():
                     else:
                         response = self.requestCall(requestArgs)
                     reqArgsIndicesCount -= 1
+                    self.pushAPIData(reqArgsIndex, response)
                     if not response.status_code in statusCodes:
                         statusCodes[response.status_code] = 0
                     statusCodes[response.status_code] += 1
-                    if response.status_code == 200 and response.headers.get('content-type').startswith('application/json'):
-                        self.pushAPIData(reqArgsIndex, response.json())
+                    # if response.status_code == 200 and response.headers.get('content-type').startswith('application/json'):
+                    #     self.pushAPIData(reqArgsIndex, response.json())
+                    # elif response.status_code == 404 and response.headers.get('content-type').startswith('application/json'):
+                    #     self.pushAPIData(reqArgsIndex, response.json())
                     lastBlockReqArgsIndices.append(reqArgsIndex)
                 for statusCode, scCount in statusCodes.items():
                     log.debug('got %s requests with status code: %s: %s' % (scCount, statusCode, apiconst.STATUS_CODES[statusCode]['short']))
