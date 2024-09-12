@@ -33,7 +33,7 @@ class Database():
         cursor.close
         return columns
 
-    def addColumn(self, table, column, type):
+    def addColumnIfNotExists(self, table, column, type):
         if not table in self.getTableNames():
             return
         if self.columnExists(table, column): return
@@ -47,6 +47,40 @@ class Database():
             False
         columns = self.getColumnNames(table)
         return(column in columns)
+
+    # UPDATE 'status' SET ('valA', 'myFloat') = ('A', '0.1') WHERE symbolKey = 'AAPL';
+    def update(self, table, id, idValue, columns, values):
+        if not table in self.getTableNames(): return
+        if not isinstance(values, tuple): return
+        if len(columns) != len(values): return
+        cursor = self.connection.cursor()
+        execString = "UPDATE '"+table+"' SET "
+        execString += " ("+",".join(["'"+x+"'" for x in columns])+")"
+        execString += " ="
+        execString += " ("+",".join(['?']*len(columns))+")"
+        execString += " WHERE "+id+" = '"+idValue+"'"
+        cursor.execute(execString, values)
+        cursor.close
+
+    def insertOrIgnore(self, table, columns, values):
+        if not table in self.getTableNames():
+            return
+        if isinstance(values, tuple):
+            if len(columns) != len(values): return
+        elif isinstance(values, list):
+            if len(columns) != len(values[0]): return
+        else: return
+
+        cursor = self.connection.cursor()
+        execString = "INSERT OR IGNORE INTO '"+table+"'"
+        execString += " ("+",".join(["'"+x+"'" for x in columns])+")"
+        execString += " VALUES"
+        execString += " ("+",".join(['?']*len(columns))+")"
+        if isinstance(values, tuple):
+            cursor.execute(execString, values)
+        elif isinstance(values, list):
+            cursor.executemany(execString, values)
+        cursor.close
 
     def insertOrReplace(self, table, columns, values):
         if not table in self.getTableNames():
@@ -67,7 +101,7 @@ class Database():
         elif isinstance(values, list):
             cursor.executemany(execString, values)
         cursor.close
-
+    
     def getRows(self, table=None, columns=None):
         if not table in self.getTableNames():
             return [], []
