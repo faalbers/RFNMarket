@@ -1,5 +1,4 @@
-from ...utils import log, database, storage
-from .. import const
+from ...utils import log, database
 from .base import Base
 from pprint import pp
 from datetime import datetime
@@ -10,6 +9,7 @@ import json
 class QuoteSummary(Base):
     def setModuleUpdatePeriods(self):
         mult = 1
+        # maybe use actual dates instead of time differences from now ?
         self.moduleUpdatePeriods = {
             'default': mult*60*60*24,
             'price': mult*60*60*24,
@@ -20,7 +20,7 @@ class QuoteSummary(Base):
             'fundProfile': mult*60*60*24*31*3,
         }
     
-    def setModules(self):
+    def trimModulesAndSymbols(self):
         modulesForTypes = {
             'profile': ['quoteType', 'assetProfile', 'fundProfile'],
             'statistics': ['defaultKeyStatistics', 'summaryDetail'],
@@ -43,19 +43,26 @@ class QuoteSummary(Base):
         self.lowestTimestamp = int(now.timestamp())
         values, params = db.getRows('status')
         for value in values:
-            if value[0] in self.symbolModules:
-                symbol = value[0]
+            symbol = value[0]
+            # only check symbols we are requesting
+            if symbol in self.symbolModules:
                 valIndex = 1
                 for module in params[1:]:
                     moduleTimestamp = value[valIndex]
+                    # check if foumd modules are in curren tymbol's modules lidt
                     if module in self.symbolModules[symbol]:
+                        # set default period if we cant find period of the module in the presets
                         updateTimestamp = int(now.timestamp())-self.moduleUpdatePeriods['default']
                         if module in self.moduleUpdatePeriods:
+                            # we found it, use that one
                             updateTimestamp = int(now.timestamp())-self.moduleUpdatePeriods[module]
-                        if moduleTimestamp < self.lowestTimestamp: self.lowestTimestamp = value[1]
+                        # find the lowest module update on all requested symbols
+                        if moduleTimestamp < self.lowestTimestamp: self.lowestTimestamp = moduleTimestamp
+                        # if we did not pass update period yet, remove module from symbol modules
                         if moduleTimestamp >= updateTimestamp:
                             self.symbolModules[symbol].remove(module)
                     valIndex += 1
+                # finally check if we still have modules left on the symbols. If not, reove symbol from list
                 if len(self.symbolModules[symbol]) == 0:
                     self.symbols.remove(value[0])
         
@@ -68,10 +75,11 @@ class QuoteSummary(Base):
         super().__init__()
         log.info('QuoteSummary update')
         self.dbName = 'yahoo_quotesummary'
-        self.symbols = symbols
+        # make shore we don't mess up the referenced symbols variable
+        self.symbols = list(symbols)
         self.types = types
         self.setModuleUpdatePeriods()
-        self.setModules()
+        self.trimModulesAndSymbols()
         
         log.info('types requested     : %s' % " ".join(types))
         log.info('requested modules   : %s' % " ".join(self.modules))
@@ -79,6 +87,7 @@ class QuoteSummary(Base):
         log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(self.lowestTimestamp)))
         log.info('symbols processing  : %s' % len(self.symbols))
 
+        # dont'run if no symbols
         if len(self.symbols) == 0: return
 
         requestArgsList = []
