@@ -20,6 +20,10 @@ class Tickers():
         self.scrapers.add((scrape.yahoo.QuoteSummary, 'price'))
         self.scrapers.add((scrape.yahoo.Chart, 'price'))
 
+    @property
+    def test(self):
+        self.scrapers.add((scrape.yahoo.TimeSeries, 'test'))
+    
     def update(self, symbols=None):
         scraperObjects = {}
         # gather types and create scraper objects
