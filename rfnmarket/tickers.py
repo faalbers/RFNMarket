@@ -18,6 +18,7 @@ class Tickers():
     @property
     def price(self):
         self.scrapers.add((scrape.yahoo.QuoteSummary, 'price'))
+        self.scrapers.add((scrape.yahoo.Chart, 'price'))
 
     def update(self, symbols=None):
         scraperObjects = {}
