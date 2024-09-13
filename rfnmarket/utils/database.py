@@ -48,7 +48,6 @@ class Database():
         columns = self.getColumnNames(table)
         return(column in columns)
 
-    # UPDATE 'status' SET ('valA', 'myFloat') = ('A', '0.1') WHERE symbolKey = 'AAPL';
     def update(self, table, id, idValue, columns, values):
         if not table in self.getTableNames(): return
         if not isinstance(values, tuple): return
@@ -58,7 +57,10 @@ class Database():
         execString += " ("+",".join(["'"+x+"'" for x in columns])+")"
         execString += " ="
         execString += " ("+",".join(['?']*len(columns))+")"
-        execString += " WHERE "+id+" = '"+idValue+"'"
+        if isinstance(idValue, str):
+            execString += " WHERE "+id+" = '"+idValue+"'"
+        else:
+            execString += " WHERE "+id+" = "+str(idValue)
         cursor.execute(execString, values)
         cursor.close
 
