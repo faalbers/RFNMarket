@@ -159,7 +159,7 @@ class Chart(Base):
                                 self.updateStatus(symbol, dbs)
                                 self.updateTimeseriesDB(symbol, timeseriesData, dbs)
                             if event == 'capitalGains':
-                                dbc = database.Database(self.dbNameSplit)
+                                dbc = database.Database(self.dbNameCapitalGains)
                                 self.updateStatus(symbol, dbc)
                                 self.updateTimeseriesDB(symbol, timeseriesData, dbc)
 
