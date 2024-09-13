@@ -41,7 +41,7 @@ class QuoteSummary(Base):
         db = database.Database(self.dbName)
         now = datetime.now()
         self.lowestTimestamp = int(now.timestamp())
-        values, params = db.getRows('status')
+        values, params = db.getRows('status_db')
         for value in values:
             symbol = value[0]
             # only check symbols we are requesting
@@ -49,7 +49,7 @@ class QuoteSummary(Base):
                 valIndex = 1
                 for module in params[1:]:
                     moduleTimestamp = value[valIndex]
-                    # check if foumd modules are in curren tymbol's modules lidt
+                    # check if found modules are in curren symbol's modules list
                     if module in self.symbolModules[symbol]:
                         # set default period if we cant find period of the module in the presets
                         updateTimestamp = int(now.timestamp())-self.moduleUpdatePeriods['default']
@@ -146,15 +146,15 @@ class QuoteSummary(Base):
                 log.info('QuoteSummary: missed data types: %s' % list(missedTypes))
 
     def updateStatus(self, symbol, db):
-        db.addTable('status', ["'keySymbol' TEXT PRIMARY KEY"])
-        db.insertOrIgnore('status', ['keySymbol'], (symbol,))
+        db.addTable('status_db', ["'keySymbol' TEXT PRIMARY KEY"])
+        db.insertOrIgnore('status_db', ['keySymbol'], (symbol,))
         params = []
         values = []
         for module in self.symbolModules[symbol]:
-            db.addColumnIfNotExists('status', module, 'TIMESTAMP')
+            db.addColumnIfNotExists('status_db', module, 'TIMESTAMP')
             params.append(module)
             values.append(int(datetime.now().timestamp()))
-        db.update( 'status', 'keySymbol', symbol, params, tuple(values) )
+        db.update( 'status_db', 'keySymbol', symbol, params, tuple(values) )
 
     def pushAPIData(self, symbolIndex, response):
         symbol = self.symbols[symbolIndex]
