@@ -1,6 +1,8 @@
 import sqlite3
 from pprint import pp
 
+# https://www.sqlite.org/lang_select.html
+
 class Database():
     def __init__(self, name):
         self.name = name
@@ -119,6 +121,20 @@ class Database():
 
         cursor.close
         return [list(x) for x in valuesFound], list(paramsFound)
+
+    def findRows(self, table=None, columns=None, equals=None):
+        if not table in self.getTableNames():
+            return [], []
+        cursor = self.connection.cursor()
+        # columnsString = ",".join(columns)
+        execString = "SELECT * FROM '"+table+"' WHERE"
+        execString += " ("+",".join(columns)+") = "
+        execString += " ("+",".join([("'%s'"%x) for x in equals])+")"
+        dataFound = cursor.execute(execString)
+        paramsFound = tuple([x[0] for x in dataFound.description])
+        valuesFound = dataFound.fetchall()
+        if len(valuesFound) == 0: paramsFound = []
+
 
     def getMaxValues(self, tables, columns):
         existingTables = self.getTableNames()
