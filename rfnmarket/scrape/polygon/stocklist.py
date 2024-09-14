@@ -88,3 +88,7 @@ class StockList(Base):
         db.insertOrIgnore('status_db', ['rowid', 'timestamp'], (1, int(datetime.now().timestamp()),))
         db.update( 'status_db', 'rowid', 1, ['timestamp'], (int(datetime.now().timestamp()),) )
 
+    def getStockSymbols(self):
+        db = database.Database(self.dbName)
+        values, params = db.getRows('stocklist', ['keySymbol'])
+        return [x[0] for x in values]
