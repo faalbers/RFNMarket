@@ -5,7 +5,7 @@ from pprint import pp
 class Tickers():
     def __init__(self, logLevel=log.WARNING):
         log.initLogger(logLevel=logLevel)
-        self. updateStockList()
+        self. updateData()
         self.scrapers = set()
 
     @property
@@ -37,9 +37,21 @@ class Tickers():
             if not scraperClass in scraperObjects:
                 scraperObjects[scraperClass] = scraperClass(symbols, types)
 
-    def updateStockList(self):
+    def updateData(self):
         scrape.fmp.StockList()
         scrape.polygon.StockList()
+        scrape.saved.Saved()
+
+    def getStockSymbols(self):
+        fmp = scrape.fmp.StockList()
+        fmpSymbols = fmp.getStockSymbols()
+        polygon = scrape.polygon.StockList()
+        polygonSymbols = polygon.getStockSymbols()
+        symbols = list(set(fmpSymbols).union(set(polygonSymbols)))
+        symbols.sort()
+        return symbols
+
+
 
 # class TickersOld():
 #     def __init__(self, logLevel=log.WARNING):
