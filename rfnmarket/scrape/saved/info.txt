@@ -1,0 +1,28 @@
+Market Identifier Codes (MIC):
+https://www.iso20022.org/market-identifier-codes
+file: ISO10383_MIC.csv
+
+Country codes:
+https://datahub.io/core/country-list
+file: ISO3166-1.csv
+
+https://www.nasdaq.com/market-activity/indexes/screener
+NASDAQ_ETFS_SCREENER.csv
+
+https://www.nasdaq.com/market-activity/stocks/screener
+NASDAQ_STOCK_SCREENER.csv
+
+https://www.sectorspdrs.com/mainfund/XLB : Materials
+https://www.sectorspdrs.com/mainfund/XLC : Communication Services
+https://www.sectorspdrs.com/mainfund/XLE : Energie
+https://www.sectorspdrs.com/mainfund/XLF : Financials
+https://www.sectorspdrs.com/mainfund/XLI : Industrials
+https://www.sectorspdrs.com/mainfund/XLK : Technology
+https://www.sectorspdrs.com/mainfund/XLP : Consumer Staples
+https://www.sectorspdrs.com/mainfund/XLRE : Real Estate
+https://www.sectorspdrs.com/mainfund/XLU : Utilities
+https://www.sectorspdrs.com/mainfund/XLV : Health Care
+https://www.sectorspdrs.com/mainfund/XLY : Consumer Discretionary
+XPDRS_(name).csv
+...
+
