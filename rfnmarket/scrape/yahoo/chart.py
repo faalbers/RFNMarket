@@ -138,8 +138,8 @@ class Chart(Base):
                                         timeseriesData[timestamps[timestampIndex]][param] = value
                                         timestampIndex += 1
                             dbq = database.Database(self.dbNameQuote)
-                            self.updateStatus(symbol, dbq)
                             self.updateTimeseriesDB(symbol, timeseriesData, dbq)
+                            self.updateStatus(symbol, dbq)
                     if 'events' in symbolData:
                         # extract all the events
                         events = symbolData['events']
@@ -152,16 +152,16 @@ class Chart(Base):
                                     timeseriesData[eventEntry['date']][param] = value
                             if event == 'dividends':
                                 dbd = database.Database(self.dbNameDividend)
-                                self.updateStatus(symbol, dbd)
                                 self.updateTimeseriesDB(symbol, timeseriesData, dbd)
+                                self.updateStatus(symbol, dbd)
                             if event == 'splits':
                                 dbs = database.Database(self.dbNameSplit)
-                                self.updateStatus(symbol, dbs)
                                 self.updateTimeseriesDB(symbol, timeseriesData, dbs)
+                                self.updateStatus(symbol, dbs)
                             if event == 'capitalGains':
                                 dbc = database.Database(self.dbNameCapitalGains)
-                                self.updateStatus(symbol, dbc)
                                 self.updateTimeseriesDB(symbol, timeseriesData, dbc)
+                                self.updateStatus(symbol, dbc)
 
             if 'finance' in symbolData:
                 # handle other possible errors

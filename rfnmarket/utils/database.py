@@ -12,6 +12,9 @@ class Database():
         self.connection.commit()
         self.connection.close()
 
+    def commit(self):
+        self.connection.commit()
+
     def addTable(self, table, columns):
         cursor = self.connection.cursor()
         execString = "CREATE TABLE IF NOT EXISTS '"+table+"' "
@@ -62,7 +65,7 @@ class Database():
         if isinstance(idValue, str):
             execString += " WHERE "+id+" = '"+idValue+"'"
         else:
-            execString += " WHERE "+id+" = "+str(idValue)
+            execString += " WHERE "+id+" = '"+str(idValue)+"'"
         cursor.execute(execString, values)
         cursor.close
 
@@ -135,6 +138,14 @@ class Database():
         valuesFound = dataFound.fetchall()
         if len(valuesFound) == 0: paramsFound = []
 
+
+    def getMaxValue(self, table=None, column=None):
+        if not table in self.getTableNames():
+            return None
+        cursor = self.connection.cursor()
+        execString = "SELECT MAX("+column+") FROM "+table
+        result = cursor.execute(execString).fetchall()
+        return result[0][0]
 
     def getMaxValues(self, tables, columns):
         existingTables = self.getTableNames()

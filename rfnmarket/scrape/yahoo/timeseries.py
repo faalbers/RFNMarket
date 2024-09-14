@@ -98,9 +98,9 @@ class TimeSeries(Base):
             self.tsTypes
             typesString = ",".join(self.symbolTsTypes[symbol])
             print(symbol)
-            print('types  : %s' % typesString)
-            print('period1: %s' % datetime.fromtimestamp(period1))
-            print('period2: %s' % datetime.fromtimestamp(period2))
+            # print('types  : %s' % typesString)
+            # print('period1: %s' % datetime.fromtimestamp(period1))
+            # print('period2: %s' % datetime.fromtimestamp(period2))
             requestArgs = {
                         'url': 'https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/'+symbol.upper(),
                         'params': {
@@ -192,6 +192,6 @@ class TimeSeries(Base):
                     # handle data return response
                     symbolData = symbolData['result']
                     db = database.Database(self.dbName)
-                    self.updateStatus(symbol, db)
                     for timeseriesData in symbolData:
                         self. updateTimeseriesDB(symbol, timeseriesData, db)
+                    self.updateStatus(symbol, db)

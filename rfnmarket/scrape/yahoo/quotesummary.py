@@ -159,7 +159,6 @@ class QuoteSummary(Base):
     def pushAPIData(self, symbolIndex, response):
         symbol = self.symbols[symbolIndex]
         db = database.Database(self.dbName)
-        self.updateStatus(symbol, db)
         if response.headers.get('content-type').startswith('application/json'):
             symbolData = response.json()
             if 'quoteSummary' in symbolData:
@@ -178,7 +177,7 @@ class QuoteSummary(Base):
                 symbolData = symbolData['finance']
                 if symbolData['error'] != None:
                     symbolData = symbolData['error']
-
+        self.updateStatus(symbol, db)
 
 
 
