@@ -11,7 +11,14 @@ class Database():
     def __del__(self):
         self.connection.commit()
         self.connection.close()
+    
+    def close(self):
+        self.connection.close()
+        self.connection = None
 
+    def getConnection(self):
+        return self.connection
+    
     def commit(self):
         self.connection.commit()
 
@@ -134,9 +141,10 @@ class Database():
         execString += " ("+",".join(columns)+") = "
         execString += " ("+",".join([("'%s'"%x) for x in equals])+")"
         dataFound = cursor.execute(execString)
-        paramsFound = tuple([x[0] for x in dataFound.description])
+        paramsFound = [x[0] for x in dataFound.description]
         valuesFound = dataFound.fetchall()
         if len(valuesFound) == 0: paramsFound = []
+        return valuesFound, paramsFound
 
 
     def getMaxValue(self, table=None, column=None):
