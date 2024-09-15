@@ -20,7 +20,7 @@ class QuoteSummary(Base):
             'fundProfile': mult*60*60*24*31*3,
         }
     
-    def trimModulesAndSymbols(self):
+    def setSymbolModules(self):
         start = datetime.now()
         modulesForTypes = {
             'profile': ['quoteType', 'assetProfile', 'fundProfile'],
@@ -96,7 +96,7 @@ class QuoteSummary(Base):
         self.symbols = list(symbols)
         self.types = types
         self.setModuleUpdatePeriods()
-        self.trimModulesAndSymbols()
+        self.setSymbolModules()
         
         # dont'run if no symbols
         if len(self.symbolModules) == 0: return
