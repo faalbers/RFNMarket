@@ -114,12 +114,12 @@ class TimeSeries(Base):
         self.multiRequest(requestArgsList, blockSize=50)
 
     def updateStatus(self, symbol, db):
-        db.addTable('status_db', ["'keySymbol' TEXT PRIMARY KEY"])
+        db.createTable('status_db', ["'keySymbol' TEXT PRIMARY KEY"])
         db.insertOrIgnore('status_db', ['keySymbol'], (symbol,))
         params = []
         values = []
         for tsType in self.symbolTsTypes[symbol]:
-            db.addColumnIfNotExists('status_db', tsType, 'TIMESTAMP')
+            db.addColumn('status_db', tsType, 'TIMESTAMP')
             params.append(tsType)
             values.append(int(datetime.now().timestamp()))
         db.update( 'status_db', 'keySymbol', symbol, params, tuple(values) )
@@ -129,7 +129,7 @@ class TimeSeries(Base):
         if not type in timeseriesData: return
         timestamps = timeseriesData['timestamp']
         tsDataList = timeseriesData[type]
-        db.addTable(type, ["'keySymbolTimestamp' TEXT PRIMARY KEY", "'symbol' TEXT", "'timestamp' TIMESTAMP"])
+        db.createTable(type, ["'keySymbolTimestamp' TEXT PRIMARY KEY", "'symbol' TEXT", "'timestamp' TIMESTAMP"])
         index = 0
         for tsData in tsDataList:
             keySymbolTimestamp = symbol+":"+str(timestamps[index])
@@ -146,27 +146,27 @@ class TimeSeries(Base):
                     allTsData[param] = value
             for param, value in allTsData.items():
                 if isinstance(value, int):
-                    db.addColumnIfNotExists(type, param, 'INTEGER')
+                    db.addColumn(type, param, 'INTEGER')
                     params.append(param)
                     values.append(value)
                 elif isinstance(value, float):
-                    db.addColumnIfNotExists(type, param, 'FLOAT')
+                    db.addColumn(type, param, 'FLOAT')
                     params.append(param)
                     values.append(value)
                 elif isinstance(value, str):
-                    db.addColumnIfNotExists(type, param, 'TEXT')
+                    db.addColumn(type, param, 'TEXT')
                     params.append(param)
                     values.append(value)
                 elif isinstance(value, bool):
-                    db.addColumnIfNotExists(type, param, 'BOOLEAN')
+                    db.addColumn(type, param, 'BOOLEAN')
                     params.append(param)
                     values.append(value)
                 elif isinstance(value, list):
-                    db.addColumnIfNotExists(type, param, 'JSON')
+                    db.addColumn(type, param, 'JSON')
                     params.append(param)
                     values.append(json.dumps(value))
                 elif isinstance(value, dict):
-                    db.addColumnIfNotExists(type, param, 'JSON')
+                    db.addColumn(type, param, 'JSON')
                     params.append(param)
                     values.append(json.dumps(value))
                 elif isinstance(value, type(None)):

@@ -19,46 +19,107 @@ class Database():
     def getConnection(self):
         return self.connection
     
+    def getCursor(self):
+        return self.connection.cursor()
+    
     def commit(self):
         self.connection.commit()
 
-    def addTable(self, table, columns):
-        cursor = self.connection.cursor()
-        execString = "CREATE TABLE IF NOT EXISTS '"+table+"' "
-        if len(columns) > 0:
-            execString += " ("+",".join(columns)+")"
-        cursor.execute(execString)
-        cursor.close()
-    
     def getTableNames(self):
         cursor = self.connection.cursor()
         names = [ x[0] for x in cursor.execute("SELECT name FROM sqlite_schema WHERE type='table'")]
         cursor.close()
         return names
-    
-    def getColumnNames(self, table):
-        if not table in self.getTableNames():
-            return []
-        cursor = self.connection.cursor()
-        foundData = cursor.execute("SELECT * FROM '%s' LIMIT 1" % table)
-        columns = [ x[0] for x in foundData.description]
-        cursor.close
-        return columns
 
-    def addColumnIfNotExists(self, table, column, type):
-        if not table in self.getTableNames():
-            return
-        if self.columnExists(table, column): return
-        
+    def tableExists(self, tableName):
+        return (tableName in self.getTableNames())
+
+    def getColumnNames(self, tableName):
+        if self.tableExists(tableName):
+            cursor = self.connection.cursor()
+            foundData = cursor.execute("SELECT * FROM '%s' LIMIT 1" % tableName)
+            columns = [ x[0] for x in foundData.description]
+            cursor.close
+            return columns
+        return []
+
+    def columnExists(self, tableName, column):
+        return (column in self.getColumnNames(tableName))
+
+    def getSchema(self):
         cursor = self.connection.cursor()
-        cursor.execute("ALTER TABLE '%s' ADD COLUMN '%s' %s" % (table, column, type))
+        execString = "SELECT * FROM sqlite_schema"
+        result = cursor.execute(execString)
+        description = result.description
+        data = result.fetchall()
+        cursor.close()
+        schemaList = []
+        rowIndex = 0
+        for row in data:
+            print('\nROW %s' % rowIndex)
+            columnIndex = 0
+            schema = {}
+            for value in row:
+                schema[description[columnIndex][0]] = value
+                columnIndex += 1
+            rowIndex += 1
+            schemaList.append(schema)
+        return schemaList
+    
+    def getRows(self, tableName, columns=[], whereColumns=[], areValues=[]):
+        if self.tableExists(tableName):
+            columnsString = '*'
+            if len(columns) > 0:
+                columnsString = ','.join(columns)
+            execString = "SELECT %s FROM '%s'" % (columnsString, tableName)
+            if len(whereColumns) > 0 and len(whereColumns) == len(areValues):
+                whereString = "%s" % whereColumns[0]
+                areString = "'%s'" % areValues[0]
+                if len(whereColumns) > 1:
+                    whereString = "(%s)"  % ','.join(whereColumns)
+                    areString = "(%s)"  % ','.join([("'%s'"%x) for x in areValues])
+                execString += " WHERE %s = %s" % (whereString, areString)
+            cursor = self.connection.cursor()
+            dataFound = cursor.execute(execString)
+            paramsFound = [x[0] for x in dataFound.description]
+            valuesFound = [list(x) for x in dataFound.fetchall()]
+            cursor.close()
+            if len(valuesFound) == 0: paramsFound = []
+            return valuesFound, paramsFound
+        return [], []
+
+    def test(self):
+        # execString = "SELECT ('quoteType','longName') FROM 'quoteType' WHERE 'symbol' = 'VITAX'"
+        execString = "SELECT 'quoteType','longname' FROM 'quoteType' WHERE ('symbol') = ('VITAX')"
+        print(execString)
+        cursor = self.connection.cursor()
+        cursor.execute(execString)
         cursor.close()
 
-    def columnExists(self, table, column):
-        if not table in self.getTableNames():
-            False
-        columns = self.getColumnNames(table)
-        return(column in columns)
+
+    def getMaxColumnValue(self, tableName, column=None):
+        if column != None and self.tableExists(tableName):
+            cursor = self.connection.cursor()
+            execString = "SELECT MAX("+column+") FROM "+tableName
+            result = cursor.execute(execString).fetchall()
+            return result[0][0]
+        return None
+
+    def createTable(self, tableName, columns=None):
+        if columns == None: return
+        cursor = self.connection.cursor()
+        execString = "CREATE TABLE IF NOT EXISTS '"+tableName+"' "
+        if len(columns) > 0:
+            execString += " ("+",".join(columns)+")"
+        cursor.execute(execString)
+        cursor.close()
+
+    def addColumn(self, tableName, column, type):
+        if not self.tableExists(tableName) or self.columnExists(tableName, column): return
+        cursor = self.connection.cursor()
+        execString = "ALTER TABLE '%s' ADD COLUMN '%s' %s" % (tableName, column, type)
+        cursor.execute(execString)
+        cursor.close()
 
     def update(self, table, id, idValue, columns, values):
         if not table in self.getTableNames(): return
@@ -116,64 +177,10 @@ class Database():
             cursor.executemany(execString, values)
         cursor.close
     
-    def getRows(self, table=None, columns=None):
-        if not table in self.getTableNames():
-            return [], []
-        cursor = self.connection.cursor()
-        if columns == None:
-            paramsString = "*"
-        else:
-            paramsString = ",".join(columns)
-        execString = "SELECT "+paramsString+" FROM '"+table+"'"
-        dataFound = cursor.execute(execString)
-        paramsFound = tuple([x[0] for x in dataFound.description])
-        valuesFound = dataFound.fetchall()
-
-        cursor.close
-        return [list(x) for x in valuesFound], list(paramsFound)
-
-    def findRows(self, table=None, columns=None, equals=None):
-        if not table in self.getTableNames():
-            return [], []
-        cursor = self.connection.cursor()
-        # columnsString = ",".join(columns)
-        execString = "SELECT * FROM '"+table+"' WHERE"
-        execString += " ("+",".join(columns)+") = "
-        execString += " ("+",".join([("'%s'"%x) for x in equals])+")"
-        dataFound = cursor.execute(execString)
-        paramsFound = [x[0] for x in dataFound.description]
-        valuesFound = dataFound.fetchall()
-        if len(valuesFound) == 0: paramsFound = []
-        return valuesFound, paramsFound
-
-
-    def getMaxValue(self, table=None, column=None):
-        if not table in self.getTableNames():
-            return None
-        cursor = self.connection.cursor()
-        execString = "SELECT MAX("+column+") FROM "+table
-        result = cursor.execute(execString).fetchall()
-        return result[0][0]
-
-    def getMaxValues(self, tables, columns):
-        existingTables = self.getTableNames()
-
-        cursor = self.connection.cursor()
-
-        execString = "SELECT MAX("+"),MAX(".join(columns)+") FROM '"
-        values = []
-        for table in tables:
-            if not table in existingTables: continue
-            values.append(cursor.execute(execString+table+"'").fetchall()[0])
-
-        cursor.close
-
-        values = [x[0] for x in values]
-        return values
 
 def createDatabase(name, createDict):
     db = Database(name)
     for tableName, tableParams in createDict.items():
-        db.addTable(tableName, tableParams)
+        db.createTable(tableName, tableParams)
 
 

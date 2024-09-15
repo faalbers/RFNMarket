@@ -12,7 +12,7 @@ class StockList(Base):
         updateTime = int(datetime.now().timestamp() - (60*60*24*31*6))
         # updateTime = int(datetime.now().timestamp())
         db = database.Database(self.dbName)
-        lastUpdateTime = db.getMaxValue('status_db', 'timestamp')
+        lastUpdateTime = db.getMaxColumnValue('status_db', 'timestamp')
         
         if lastUpdateTime != None and lastUpdateTime > updateTime: return
         
@@ -29,7 +29,7 @@ class StockList(Base):
         if response.headers.get('content-type').startswith('application/json'):
             responseData = response.json()
             timestamp = int(datetime.now().timestamp())
-            db.addTable('stocklist', ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP", "'name' TEXT", "'price' FLOAT",
+            db.createTable('stocklist', ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP", "'name' TEXT", "'price' FLOAT",
                 "'exchange' TEXT", "'exchangeShortName' TEXT", "'type' TEXT"])
             for entry in responseData:
                 params = ['timestamp']
@@ -43,11 +43,11 @@ class StockList(Base):
                     params.append(param)
                     values.append(value)
                 db.update( 'stocklist', 'keySymbol', symbol, params, tuple(values) )
-            db.addTable('status_db', ["'timestamp' TIMESTAMP"])
+            db.createTable('status_db', ["'timestamp' TIMESTAMP"])
             db.insertOrIgnore('status_db', ['rowid', 'timestamp'], (1, int(datetime.now().timestamp()),))
             db.update( 'status_db', 'rowid', 1, ['timestamp'], (int(datetime.now().timestamp()),) )
 
     def getStockSymbols(self):
         db = database.Database(self.dbName)
-        values, params = db.getRows('stocklist', ['keySymbol'])
+        values, params = db.getRows('stocklist', columns=['keySymbol'])
         return [x[0] for x in values]

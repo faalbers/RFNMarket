@@ -81,14 +81,15 @@ class QuoteSummary(Base):
         self.setModuleUpdatePeriods()
         self.trimModulesAndSymbols()
         
+        # dont'run if no symbols
+        if len(self.symbols) == 0: return
+        
         log.info('types requested     : %s' % " ".join(types))
         log.info('requested modules   : %s' % " ".join(self.modules))
         # log.info('update before       : %s' % datetime.fromtimestamp(updateTimestamp))
         log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(self.lowestTimestamp)))
         log.info('symbols processing  : %s' % len(self.symbols))
 
-        # dont'run if no symbols
-        if len(self.symbols) == 0: return
 
         requestArgsList = []
         for symbol in self.symbols:
@@ -107,34 +108,34 @@ class QuoteSummary(Base):
         self.multiRequest(requestArgsList, blockSize=100)
     
     def updateDatabaseRow(self, symbol, module, moduleData, db):
-            db.addTable(module, ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP"])
+            db.createTable(module, ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP"])
             db.insertOrIgnore(module, ['keySymbol'], (symbol,))
             params = ['timestamp']
             values = [int(datetime.now().timestamp())]
             missedTypes = set()
             for param, value in moduleData.items():
                 if isinstance(value, int):
-                    db.addColumnIfNotExists(module, param, 'INTEGER')
+                    db.addColumn(module, param, 'INTEGER')
                     params.append(param)
                     values.append(value)
                 elif isinstance(value, float):
-                    db.addColumnIfNotExists(module, param, 'FLOAT')
+                    db.addColumn(module, param, 'FLOAT')
                     params.append(param)
                     values.append(value)
                 elif isinstance(value, str):
-                    db.addColumnIfNotExists(module, param, 'TEXT')
+                    db.addColumn(module, param, 'TEXT')
                     params.append(param)
                     values.append(value)
                 elif isinstance(value, bool):
-                    db.addColumnIfNotExists(module, param, 'BOOLEAN')
+                    db.addColumn(module, param, 'BOOLEAN')
                     params.append(param)
                     values.append(value)
                 elif isinstance(value, list):
-                    db.addColumnIfNotExists(module, param, 'JSON')
+                    db.addColumn(module, param, 'JSON')
                     params.append(param)
                     values.append(json.dumps(value))
                 elif isinstance(value, dict):
-                    db.addColumnIfNotExists(module, param, 'JSON')
+                    db.addColumn(module, param, 'JSON')
                     params.append(param)
                     values.append(json.dumps(value))
                 elif isinstance(value, type(None)):
@@ -146,12 +147,12 @@ class QuoteSummary(Base):
                 log.info('QuoteSummary: missed data types: %s' % list(missedTypes))
 
     def updateStatus(self, symbol, db):
-        db.addTable('status_db', ["'keySymbol' TEXT PRIMARY KEY"])
+        db.createTable('status_db', ["'keySymbol' TEXT PRIMARY KEY"])
         db.insertOrIgnore('status_db', ['keySymbol'], (symbol,))
         params = []
         values = []
         for module in self.symbolModules[symbol]:
-            db.addColumnIfNotExists('status_db', module, 'TIMESTAMP')
+            db.addColumn('status_db', module, 'TIMESTAMP')
             params.append(module)
             values.append(int(datetime.now().timestamp()))
         db.update( 'status_db', 'keySymbol', symbol, params, tuple(values) )

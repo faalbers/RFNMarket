@@ -15,7 +15,7 @@ class Saved():
         cvsFiles = glob.glob(self.dataPath+'*.csv')
         db = database.Database('saved')
         # get status first
-        fileDates , dataNames = db.findRows('status_db', ['rowid'], [1])
+        fileDates , dataNames = db.getRows('status_db', whereColumns=['rowid'], areValues=[1])
         statusDates = {}
         index = 0
         for dataName in dataNames:
@@ -37,8 +37,8 @@ class Saved():
             filesRead += 1
 
             # update status
-            db.addTable('status_db', ["'%s' TIMESTAMP" % dataName])
-            db.addColumnIfNotExists('status_db', dataName, 'TIMESTAMP')
+            db.createTable('status_db', ["'%s' TIMESTAMP" % dataName])
+            db.addColumn('status_db', dataName, 'TIMESTAMP')
             db.insertOrIgnore('status_db', ['rowid'], (1,))
             db.update( 'status_db', 'rowid', 1, [dataName], (fileDate,) )
 

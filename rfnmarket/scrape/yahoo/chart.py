@@ -50,11 +50,12 @@ class Chart(Base):
         self.setUpdatePeriods()
         self.trimSymbols()
 
-        log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(self.lowestTimestamp)))
-        log.info('symbols processing  : %s' % len(self.symbols))
 
         # dont'run if no symbols
         if len(self.symbols) == 0: return
+
+        log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(self.lowestTimestamp)))
+        log.info('symbols processing  : %s' % len(self.symbols))
 
         requestArgsList = []
         for symbol in self.symbols:
@@ -77,7 +78,7 @@ class Chart(Base):
         self.multiRequest(requestArgsList, blockSize=50)
     
     def updateStatus(self, symbol, db):
-        db.addTable('status_db', ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP"])
+        db.createTable('status_db', ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP"])
         db.insertOrIgnore('status_db', ['keySymbol'], (symbol,))
         db.update( 'status_db', 'keySymbol', symbol, ['timestamp'], tuple([int(datetime.now().timestamp())]) )
 
@@ -100,7 +101,7 @@ class Chart(Base):
         if len(params) == 0: return
         params.sort()
         params = ["'timestamp' TIMESTAMP PRIMARY KEY"]+params
-        db.addTable(symbol, params)
+        db.createTable(symbol, params)
         for timestamp, timestampData in timeseriesData.items():
             db.insertOrIgnore(symbol, ['timestamp'], (timestamp,))
             params = []
