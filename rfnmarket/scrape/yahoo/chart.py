@@ -4,66 +4,63 @@ from datetime import datetime
 from pprint import pp 
 
 class Chart(Base):
-    def setUpdatePeriods(self):
-        mult = 1
-        # for now we only use default of 1 day
-        self.updatePeriods = {
-            'default': mult*60*60*24,
-        }
-
-    def trimSymbols(self):
+    def setSymbolPeriod1(self):
         # set all symbols with lowest period1 of 10 years
+
+        # check last timestamp of symbols in quote database
+        db = database.Database(self.dbNameQuote)
+        values, params = db.getRows('status_db')
+        foundSymbolTimestamps = {}
+        for value in values:
+            foundSymbolTimestamps[value[0]] = value[1]
+
+        # set period1 for all symbol requests
+        self.symbolPeriod1 = {}
         now = datetime.now()
         self.lowestTimestamp = int(now.timestamp())
-        self.symbolPeriod1 = {}
+        # update period is 1 day
+        updateTimestamp = int(now.timestamp()) - int(60*60*24)
         for symbol in self.symbols:
-            self.symbolPeriod1[symbol] = self.lowestTimestamp - int(60*60*24*365.2422*10)
+            if symbol in foundSymbolTimestamps:
+                # if needed update add symbol with last timestamp
+                if updateTimestamp >= foundSymbolTimestamps[symbol]:
+                    self.symbolPeriod1[symbol] = foundSymbolTimestamps[symbol]
+                if foundSymbolTimestamps[symbol] < self.lowestTimestamp:
+                    self.lowestTimestamp = foundSymbolTimestamps[symbol]
+            else:
+                # add symbol with period1 of 10 years
+                self.symbolPeriod1[symbol] = int(now.timestamp()) - int(60*60*24*365.2422*10)
 
-        # # check last update period of symbols in quote database and use that for period1
-        db = database.Database(self.dbNameQuote)
-        self.lowestTimestamp = int(now.timestamp())
-        values, params = db.getRows('status_db')
-        for value in values:
-            symbol = value[0]
-            if symbol in self.symbols:
-                timestamp = value[1]
-                if timestamp < self.lowestTimestamp: self.lowestTimestamp = timestamp
-                self.symbolPeriod1[symbol] = timestamp
+        for symbol in set(self.symbols).intersection(foundSymbolTimestamps.keys()):
+            if updateTimestamp >= foundSymbolTimestamps[symbol]:
+                self.symbolPeriod1[symbol] = foundSymbolTimestamps[symbol]
+            if foundSymbolTimestamps[symbol] < self.lowestTimestamp: self.lowestTimestamp = foundSymbolTimestamps[symbol]
 
-        # if last update is less then update period, remove symbol
-        # use default update period for now        
-        for symbol, timestamp in self.symbolPeriod1.items():
-            updatePeriod = int(now.timestamp()) - timestamp
-            if updatePeriod < self.updatePeriods['default']:
-                self.symbols.remove(symbol)
-
-    def __init__(self, symbols, types):
+    def __init__(self, symbols=None, types=None):
         super().__init__()
-        log.info('Chart update')
         self.dbNameQuote = 'yahoo_chart_quote'
         self.dbNameDividend = 'yahoo_chart_dividend'
         self.dbNameSplit = 'yahoo_chart_split'
         self.dbNameCapitalGains = 'yahoo_chart_capitalgains'
+
+        # if we are not updating just use class for data retrieval
+        if symbols == None : return
+
         # make shore we don't mess up the referenced symbols variable
         self.symbols = list(symbols)
-        self.types = types
-        self.setUpdatePeriods()
-        self.trimSymbols()
-
+        self.setSymbolPeriod1()
 
         # dont'run if no symbols
-        if len(self.symbols) == 0: return
+        if len(self.symbolPeriod1) == 0: return
 
+        log.info('Chart update')
         log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(self.lowestTimestamp)))
-        log.info('symbols processing  : %s' % len(self.symbols))
+        log.info('symbols processing  : %s' % len(self.symbolPeriod1))
 
         requestArgsList = []
-        for symbol in self.symbols:
-            period1 = self.symbolPeriod1[symbol]
+        self.symbols = []
+        for symbol, period1 in self.symbolPeriod1.items():
             period2 = int(datetime.now().timestamp())
-            # print(symbol)
-            # print('period1: %s' % datetime.fromtimestamp(period1))
-            # print('period2: %s' % datetime.fromtimestamp(period2))
             requestArgs = {
                 'url': 'https://query2.finance.yahoo.com/v8/finance/chart/'+symbol.upper(),
                 'params': {
@@ -75,6 +72,7 @@ class Chart(Base):
                 'timeout': 30,
             }                      
             requestArgsList.append(requestArgs)
+            self.symbols.append(symbol)
         self.multiRequest(requestArgsList, blockSize=50)
     
     def updateStatus(self, symbol, db):
@@ -113,6 +111,10 @@ class Chart(Base):
        
     def pushAPIData(self, symbolIndex, response):
         symbol = self.symbols[symbolIndex]
+        dbQuote = database.Database(self.dbNameQuote)
+        dbDividend = database.Database(self.dbNameDividend)
+        dbSplit = database.Database(self.dbNameSplit)
+        dbCapitalGains = database.Database(self.dbNameCapitalGains)
         if response.headers.get('content-type').startswith('application/json'):
             symbolData = response.json()
             if 'chart' in symbolData:
@@ -138,9 +140,7 @@ class Chart(Base):
                                     for value in values:
                                         timeseriesData[timestamps[timestampIndex]][param] = value
                                         timestampIndex += 1
-                            dbq = database.Database(self.dbNameQuote)
-                            self.updateTimeseriesDB(symbol, timeseriesData, dbq)
-                            self.updateStatus(symbol, dbq)
+                            self.updateTimeseriesDB(symbol, timeseriesData, dbQuote)
                     if 'events' in symbolData:
                         # extract all the events
                         events = symbolData['events']
@@ -152,20 +152,16 @@ class Chart(Base):
                                     if param == 'date': continue
                                     timeseriesData[eventEntry['date']][param] = value
                             if event == 'dividends':
-                                dbd = database.Database(self.dbNameDividend)
-                                self.updateTimeseriesDB(symbol, timeseriesData, dbd)
-                                self.updateStatus(symbol, dbd)
+                                self.updateTimeseriesDB(symbol, timeseriesData, dbDividend)
                             if event == 'splits':
-                                dbs = database.Database(self.dbNameSplit)
-                                self.updateTimeseriesDB(symbol, timeseriesData, dbs)
-                                self.updateStatus(symbol, dbs)
+                                self.updateTimeseriesDB(symbol, timeseriesData, dbSplit)
                             if event == 'capitalGains':
-                                dbc = database.Database(self.dbNameCapitalGains)
-                                self.updateTimeseriesDB(symbol, timeseriesData, dbc)
-                                self.updateStatus(symbol, dbc)
+                                self.updateTimeseriesDB(symbol, timeseriesData, dbCapitalGains)
 
             if 'finance' in symbolData:
                 # handle other possible errors
                 symbolData = symbolData['finance']
                 if symbolData['error'] != None:
                     symbolData = symbolData['error']
+        
+        self.updateStatus(symbol, dbQuote)
