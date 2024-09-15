@@ -21,7 +21,6 @@ class QuoteSummary(Base):
         }
     
     def setSymbolModules(self):
-        start = datetime.now()
         modulesForTypes = {
             'profile': ['quoteType', 'assetProfile', 'fundProfile'],
             'statistics': ['defaultKeyStatistics', 'summaryDetail'],
