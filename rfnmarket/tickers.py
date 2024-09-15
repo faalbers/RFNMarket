@@ -50,6 +50,12 @@ class Tickers():
         symbols = list(set(fmpSymbols).union(set(polygonSymbols)))
         symbols.sort()
         return symbols
+    
+    def getYahooStockSymbols(self):
+        yahoo = scrape.yahoo.QuoteSummary()
+        yhSymbols = yahoo.getStockSymbols()
+        yhSymbols.sort()
+        return yhSymbols
 
 
 
