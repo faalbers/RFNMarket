@@ -21,6 +21,7 @@ class QuoteSummary(Base):
         }
     
     def trimModulesAndSymbols(self):
+        start = datetime.now()
         modulesForTypes = {
             'profile': ['quoteType', 'assetProfile', 'fundProfile'],
             'statistics': ['defaultKeyStatistics', 'summaryDetail'],
@@ -30,51 +31,67 @@ class QuoteSummary(Base):
         self.modules = set()
         for type in self.types:
             self.modules = self.modules.union(set(modulesForTypes[type]))
-        
-        # set all symbols with those modules
-        self.symbolModules = {}
-        for symbol in self.symbols:
-            self.symbolModules[symbol] = set(self.modules)
 
-        # remove modules per symbol if update period is not over yet based on last runs
-        # # also remove symbols if they don't need to be updated     
+        # collect modules per symbol if update period is over for that module
+        self.symbolModules = {}
+        modulesToBeDone = set()
         db = database.Database(self.dbName)
         now = datetime.now()
         self.lowestTimestamp = int(now.timestamp())
         values, params = db.getRows('status_db')
+        foundSymbolIndices = {}
+        index = 0
         for value in values:
-            symbol = value[0]
-            # only check symbols we are requesting
-            if symbol in self.symbolModules:
-                valIndex = 1
-                for module in params[1:]:
-                    moduleTimestamp = value[valIndex]
-                    # check if found modules are in curren symbol's modules list
-                    if module in self.symbolModules[symbol]:
-                        # set default period if we cant find period of the module in the presets
-                        updateTimestamp = int(now.timestamp())-self.moduleUpdatePeriods['default']
-                        if module in self.moduleUpdatePeriods:
-                            # we found it, use that one
-                            updateTimestamp = int(now.timestamp())-self.moduleUpdatePeriods[module]
-                        # find the lowest module update on all requested symbols
-                        if moduleTimestamp < self.lowestTimestamp: self.lowestTimestamp = moduleTimestamp
-                        # if we did not pass update period yet, remove module from symbol modules
-                        if moduleTimestamp >= updateTimestamp:
-                            self.symbolModules[symbol].remove(module)
-                    valIndex += 1
-                # finally check if we still have modules left on the symbols. If not, reove symbol from list
-                if len(self.symbolModules[symbol]) == 0:
-                    self.symbols.remove(value[0])
-        
-        # finally gather all modules that will be read
-        self.modules = set()
+            foundSymbolIndices[value[0]] = index
+            index += 1
+        foundModuleIndices = {}
+        index = 0
+        for param in params:
+            foundModuleIndices[param] = index
+            index += 1
+        # check all requested symbols
         for symbol in self.symbols:
-            self.modules = self.modules.union(self.symbolModules[symbol])
+            if symbol in foundSymbolIndices:
+                value = values[foundSymbolIndices[symbol]]
+                modules = set()
+                for module in self.modules:
+                    if module in foundModuleIndices:
+                        moduleTimestamp = value[foundModuleIndices[module]]
+                        if moduleTimestamp != None:
+                            # check if found modules are in curren symbol's modules list and if there was a moduleTimestamp
+                            if module in self.modules:
+                                updateTimestamp = int(now.timestamp())-self.moduleUpdatePeriods['default']
+                                if module in self.moduleUpdatePeriods:
+                                    # we found it, use that one
+                                    updateTimestamp = int(now.timestamp())-self.moduleUpdatePeriods[module]
+                                # find the lowest module update on all requested symbols
+                                if moduleTimestamp < self.lowestTimestamp: self.lowestTimestamp = moduleTimestamp
+                                # add module module timestamp is lower then the module update timestamp
+                                if updateTimestamp >= moduleTimestamp:
+                                    modules.add(module)
+                                    modulesToBeDone.add(module)
+                        else:
+                            modules.add(module)
+                            modulesToBeDone.add(module)
+                    else:
+                        modules.add(module)
+                        modulesToBeDone.add(module)
+                if len(modules) > 0:
+                    self.symbolModules[symbol] = modules
+            elif len(self.modules) > 0:
+                self.symbolModules[symbol] = set(self.modules)
+                modulesToBeDone = modulesToBeDone.union(self.modules)
+        
+        # update modules with modules to be done
+        self.modules = modulesToBeDone
 
-    def __init__(self, symbols, types):
+    def __init__(self, symbols=None, types=None):
         super().__init__()
-        log.info('QuoteSummary update')
         self.dbName = 'yahoo_quotesummary'
+
+        # if we are not updating just use class for data retrieval
+        if symbols == None or types == None: return
+        
         # make shore we don't mess up the referenced symbols variable
         self.symbols = list(symbols)
         self.types = types
@@ -82,19 +99,19 @@ class QuoteSummary(Base):
         self.trimModulesAndSymbols()
         
         # dont'run if no symbols
-        if len(self.symbols) == 0: return
+        if len(self.symbolModules) == 0: return
         
+        log.info('QuoteSummary update')
         log.info('types requested     : %s' % " ".join(types))
         log.info('requested modules   : %s' % " ".join(self.modules))
         # log.info('update before       : %s' % datetime.fromtimestamp(updateTimestamp))
         log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(self.lowestTimestamp)))
-        log.info('symbols processing  : %s' % len(self.symbols))
-
+        log.info('symbols processing  : %s' % len(self.symbolModules))
 
         requestArgsList = []
-        for symbol in self.symbols:
+        self.symbols = []
+        for symbol, modules in self.symbolModules.items():
             modulesString = ",".join(self.symbolModules[symbol])
-            # print('%s: %s' % (symbol, modulesString))
             requestArgs = {
                 'url': 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/'+symbol.upper(),
                 'params': {
@@ -105,6 +122,7 @@ class QuoteSummary(Base):
                 'timeout': 30,
             }
             requestArgsList.append(requestArgs)
+            self.symbols.append(symbol)
         self.multiRequest(requestArgsList, blockSize=100)
     
     def updateDatabaseRow(self, symbol, module, moduleData, db):
@@ -180,6 +198,8 @@ class QuoteSummary(Base):
                     symbolData = symbolData['error']
         self.updateStatus(symbol, db)
 
-
-
+    def getStockSymbols(self):
+        db = database.Database(self.dbName)
+        values, params = db.getRows('quoteType', columns=['keySymbol'])
+        return [x[0] for x in values]
 
