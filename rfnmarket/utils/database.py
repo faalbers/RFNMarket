@@ -1,4 +1,4 @@
-import sqlite3
+import sqlite3, re
 from pprint import pp
 
 # https://www.sqlite.org/lang_select.html
@@ -56,7 +56,6 @@ class Database():
         schemaList = []
         rowIndex = 0
         for row in data:
-            print('\nROW %s' % rowIndex)
             columnIndex = 0
             schema = {}
             for value in row:
@@ -70,13 +69,13 @@ class Database():
         if self.tableExists(tableName):
             columnsString = '*'
             if len(columns) > 0:
-                columnsString = ','.join(columns)
+                columnsString = ','.join([("[%s]"%x) for x in columns])
             execString = "SELECT %s FROM '%s'" % (columnsString, tableName)
             if len(whereColumns) > 0 and len(whereColumns) == len(areValues):
-                whereString = "%s" % whereColumns[0]
+                whereString = "[%s]" % whereColumns[0]
                 areString = "'%s'" % areValues[0]
                 if len(whereColumns) > 1:
-                    whereString = "(%s)"  % ','.join(whereColumns)
+                    whereString = "(%s)"  % ','.join([("[%s]"%x) for x in whereColumns])
                     areString = "(%s)"  % ','.join([("'%s'"%x) for x in areValues])
                 execString += " WHERE %s = %s" % (whereString, areString)
             cursor = self.connection.cursor()
@@ -91,7 +90,6 @@ class Database():
     def test(self):
         # execString = "SELECT ('quoteType','longName') FROM 'quoteType' WHERE 'symbol' = 'VITAX'"
         execString = "SELECT 'quoteType','longname' FROM 'quoteType' WHERE ('symbol') = ('VITAX')"
-        print(execString)
         cursor = self.connection.cursor()
         cursor.execute(execString)
         cursor.close()
@@ -114,12 +112,34 @@ class Database():
         cursor.execute(execString)
         cursor.close()
 
+    def dropTable(self, tableName):
+        if not self.tableExists(tableName): return
+        cursor = self.connection.cursor()
+        execString = "DROP TABLE '"+tableName+"' "
+        cursor.execute(execString)
+        cursor.close()
+
     def addColumn(self, tableName, column, type):
         if not self.tableExists(tableName) or self.columnExists(tableName, column): return
         cursor = self.connection.cursor()
         execString = "ALTER TABLE '%s' ADD COLUMN '%s' %s" % (tableName, column, type)
         cursor.execute(execString)
         cursor.close()
+    
+    def deleteRow(self, tableName, whereColumns=[], areValues=[]):
+        if not self.tableExists(tableName): return
+        execString = "DELETE FROM '%s'" % tableName
+        if len(whereColumns) > 0 and len(whereColumns) == len(areValues):
+            cursor = self.connection.cursor()
+            whereString = "[%s]" % whereColumns[0]
+            areString = "'%s'" % areValues[0]
+            if len(whereColumns) > 1:
+                whereString = "(%s)"  % ','.join([("[%s]"%x) for x in whereColumns])
+                areString = "(%s)"  % ','.join([("'%s'"%x) for x in areValues])
+            execString += " WHERE %s = %s" % (whereString, areString)
+            cursor.execute(execString)
+            cursor.close
+
 
     def update(self, table, id, idValue, columns, values):
         if not table in self.getTableNames(): return
@@ -127,7 +147,7 @@ class Database():
         if len(columns) != len(values): return
         cursor = self.connection.cursor()
         execString = "UPDATE '"+table+"' SET "
-        execString += " ("+",".join(["'"+x+"'" for x in columns])+")"
+        execString += " ("+','.join([("[%s]"%x) for x in columns])+")"
         execString += " ="
         execString += " ("+",".join(['?']*len(columns))+")"
         if isinstance(idValue, str):
@@ -176,7 +196,46 @@ class Database():
         elif isinstance(values, list):
             cursor.executemany(execString, values)
         cursor.close
+
+    def addFromDatabase(self, name):
+        cursor = self.connection.cursor()
+        execString = "ATTACH DATABASE '%s' AS new_db" % ('database/%s.db' % name)
+        cursor.execute(execString)
+        execString = "SELECT name, sql FROM new_db.sqlite_schema WHERE type='table'"
+        tables = cursor.execute(execString).fetchall()
+        count = 0
+        for table in tables:
+            execString = table[1]
+            execString = execString.replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
+            cursor.execute(execString)
+            execString = 'INSERT OR IGNORE INTO %s SELECT * FROM new_db.[%s]' % (table[0], table[0])
+            try:
+                cursor.execute(execString)
+            except:
+                print(execString)
+            count += 1
+        cursor.close
+        return count
     
+    def test(self):
+        symbols = self.getRows('stocklist', columns=['keySymbol'])
+        foundSymbols = {}
+        for symbol in symbols[0]:
+            symbol = symbol[0]
+            if not symbol.isalnum():
+                if '.' in symbol: continue
+                elif '-' in symbol: continue
+                elif ':' in symbol:
+                    items = symbol.split(':')
+                    if not items[0] in foundSymbols:
+                        foundSymbols[items[0]] = set()
+                    foundSymbols[items[0]].add(items[1])
+                else:
+                    print(symbol)
+                    break
+
+        print(foundSymbols.keys())
+        print(foundSymbols['I'])
 
 def createDatabase(name, createDict):
     db = Database(name)
