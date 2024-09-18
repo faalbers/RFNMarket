@@ -3,6 +3,8 @@ from ...utils import log, database
 from pprint import pp
 from datetime import datetime
 
+# https://financialmodelingprep.com
+
 class StockList(Base):
     def __init__(self):
         super().__init__()
@@ -47,7 +49,25 @@ class StockList(Base):
             db.insertOrIgnore('status_db', ['rowid', 'timestamp'], (1, int(datetime.now().timestamp()),))
             db.update( 'status_db', 'rowid', 1, ['timestamp'], (int(datetime.now().timestamp()),) )
 
-    def getStockSymbols(self):
+    def getStocks(self, type=None, exchangeCountry=None):
         db = database.Database(self.dbName)
-        values, params = db.getRows('stocklist', columns=['keySymbol'])
-        return [x[0] for x in values]
+        if type == None:
+            slvalues, slparams = db.getRows('stocklist', columns=['keySymbol', 'exchangeShortName'])
+        else:
+            slvalues, slparams = db.getRows('stocklist', columns=['keySymbol', 'exchangeShortName'], whereColumns=['type'], areValues=[type])
+        
+        symbols = []
+        if exchangeCountry != None:
+            dbSaved = database.Database('saved')
+            acvalues, acparams = dbSaved.getRows('ISO10383_MIC', columns=['ACRONYM', 'ISO COUNTRY CODE (ISO 3166)'])
+            acronyms = {}
+            for value in acvalues:
+                acronyms[value[0]] = value[1]
+            for value in slvalues:
+                if value[1] in acronyms and acronyms[value[1]] == exchangeCountry:
+                    symbols.append(value[0])
+        else:
+            symbols = [x[0] for x in slvalues]
+       
+        return symbols
+    

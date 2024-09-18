@@ -197,7 +197,7 @@ class QuoteSummary(Base):
                     symbolData = symbolData['error']
         self.updateStatus(symbol, db)
 
-    def getStockSymbols(self):
+    def getQuoteTypeSymbols(self):
         db = database.Database(self.dbName)
         values, params = db.getRows('quoteType', columns=['keySymbol'])
         return [x[0] for x in values]

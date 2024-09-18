@@ -5,7 +5,7 @@ from pprint import pp
 class Tickers():
     def __init__(self, logLevel=log.WARNING):
         log.initLogger(logLevel=logLevel)
-        self. updateData()
+        self.updateData()
         self.scrapers = set()
 
     @property
@@ -39,23 +39,27 @@ class Tickers():
 
     def updateData(self):
         scrape.fmp.StockList()
-        scrape.polygon.StockList()
+        scrape.polygon.Tickers()
         scrape.saved.Saved()
 
-    def getStockSymbols(self):
+    def getTickerSymbols(self, exchangeCountry=None, includeIndices= False):
         fmp = scrape.fmp.StockList()
-        fmpSymbols = fmp.getStockSymbols()
-        polygon = scrape.polygon.StockList()
-        polygonSymbols = polygon.getStockSymbols()
-        symbols = list(set(fmpSymbols).union(set(polygonSymbols)))
-        symbols.sort()
-        return symbols
+        fmpSymbols = fmp.getStocks(exchangeCountry=exchangeCountry)
+        
+        polygon = scrape.polygon.Tickers()
+        polygonSymbols = polygon.getTickers(exchangeCountry=exchangeCountry)
+        if includeIndices:
+            polygonSymbols += polygon.getTickers(market='indices')
+       
+        return list(set(fmpSymbols + polygonSymbols))
     
-    def getYahooStockSymbols(self):
-        yahoo = scrape.yahoo.QuoteSummary()
-        yhSymbols = yahoo.getStockSymbols()
-        yhSymbols.sort()
-        return yhSymbols
+    def getQuoteTypeSymbols(self):
+        qs = scrape.yahoo.QuoteSummary()
+        return qs.getQuoteTypeSymbols()
+    
+    def getChart(self, symbol, typeName):
+        ch = scrape.yahoo.Chart()
+        return ch.getChart(symbol, typeName)
 
 
 

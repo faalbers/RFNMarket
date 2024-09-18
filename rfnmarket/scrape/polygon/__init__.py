@@ -1,1 +1,1 @@
-from .stocklist import StockList
+from .tickers import Tickers
