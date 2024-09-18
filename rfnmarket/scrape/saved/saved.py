@@ -9,10 +9,10 @@ from pprint import pp
 class Saved():
     def __init__(self):
         self.dataPath = 'database/'
-        self.getCSV()
-        self.getQuicken()
+        self.readCSV()
+        self.readQuicken()
 
-    def getQuicken(self):
+    def readQuicken(self):
         # get status first
         db = database.Database('saved')
         fileDates , dataNames = db.getRows('status_db', whereColumns=['rowid'], areValues=[1])
@@ -120,8 +120,7 @@ class Saved():
             db.insertOrIgnore('status_db', ['rowid'], (1,))
             db.update( 'status_db', 'rowid', 1, [tableName], (fileDate,) )
 
-
-    def getCSV(self):
+    def readCSV(self):
         cvsFiles = glob.glob(self.dataPath+'*.csv')
         db = database.Database('saved')
         # get status first
@@ -154,3 +153,68 @@ class Saved():
 
         if filesRead > 0:
             log.info('CSV files read and updated: %s' % filesRead)
+
+    def getQuickenInvestments(self, withShares=True):
+        investments = {}
+        db = database.Database('saved')
+
+        # find QUICKEN table
+        db.getTableNames()
+        tableNames = list(filter(lambda item: item.startswith('QUICKEN'), db.getTableNames()))
+        if len(tableNames) == 0: return investments
+
+        tableName = tableNames[0]
+
+        # find all symbols
+        values, params = db.getRows(tableName, columns=['symbol'])
+        symbols = list(set([x[0] for x in values]))
+        symbols = list(filter(lambda item: not ' ' in item, symbols))
+        symbols = set(symbols)
+
+        # find ingoung params and outgoing params
+        values, params = db.getRows(tableName, columns=['transaction'])
+        transactionParams = list(set([x[0] for x in values]))
+        sharesInParams = set(list(filter(lambda item: item.startswith('Reinv'), transactionParams))+['Buy', 'ShrsIn'])
+        sharesOutParams = set(['Sell', 'ShrsOut'])
+
+        if withShares:
+            # only get symbols that still are invested
+            symbolsWithShares = set()
+            for symbol in symbols:
+                # add incoming shares and substract outgoing shares
+                shares = 0
+                for tParam in sharesInParams:
+                    values, params = db.getRows(tableName, columns=['shares'], whereColumns=['symbol', 'transaction'], areValues=[symbol, tParam])
+                    paramValues = [x[0] for x in values]
+                    paramValues = list(filter(lambda item: item is not None, paramValues))
+                    if len(paramValues) == 0: continue
+                    shares += sum(paramValues)
+                for tParam in sharesOutParams:
+                    values, params = db.getRows(tableName, columns=['shares'], whereColumns=['symbol', 'transaction'], areValues=[symbol, tParam])
+                    paramValues = [x[0] for x in values]
+                    paramValues = list(filter(lambda item: item is not None, paramValues))
+                    if len(paramValues) == 0: continue
+                    shares -= sum(paramValues)
+                
+                # if we still have shares, we keep them
+                if shares > 0.001:
+                    symbolsWithShares.add(symbol)
+
+            symbols = symbolsWithShares
+
+        # get investment data of symbols
+        for symbol in symbols:
+            investments[symbol] = {}
+            values, params = db.getRows(tableName, ['timestamp', 'transaction', 'shares', 'price', 'costBasis'],
+                whereColumns=['symbol'], areValues=[symbol])
+            
+            for value in values:
+                # skip the ones with no shares transaction
+                if value[2] == None: continue
+                data = investments[symbol][value[0]] = {}
+                index = 1
+                for param in params[1:]:
+                    data[param] = value[index]
+                    index += 1
+        
+        return investments

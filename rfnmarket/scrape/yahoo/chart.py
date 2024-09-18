@@ -41,7 +41,7 @@ class Chart(Base):
         self.dbName = 'yahoo_chart'
 
         # if we are not updating just use class for data retrieval
-        if symbols == None : return
+        if symbols == None or types == None: return
 
         # make shore we don't mess up the referenced symbols variable
         self.symbols = list(symbols)
@@ -195,6 +195,11 @@ class Chart(Base):
                 chart[timestamp][params[index]] = item
                 index += 1
         return chart
+
+    def getData(self, symbols, types):
+        data = {}
+        if len(symbols) == 0 or not 'price' in types: return data
+        return data
 
 
         

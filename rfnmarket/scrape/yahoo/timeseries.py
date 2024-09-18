@@ -74,7 +74,7 @@ class TimeSeries(Base):
         for symbol in self.symbols:
             self.tsTypes = self.tsTypes.union(self.symbolTsTypes[symbol])
     
-    def __init__(self, symbols, types):
+    def __init__(self, symbols=None, types=None):
         super().__init__()
         log.info('QuoteSummary update')
         self.dbName = 'yahoo_timeseries'
@@ -83,6 +83,9 @@ class TimeSeries(Base):
         self.types = types
         self.setUpdatePeriods()
         self.trimSymbols()
+
+        # if we are not updating just use class for data retrieval
+        if symbols == None or types == None: return
 
         log.info('types requested     : %s' % " ".join(types))
         log.info('requested tsTypes   : %s' % " ".join(self.tsTypes))
@@ -195,3 +198,7 @@ class TimeSeries(Base):
                     for timeseriesData in symbolData:
                         self. updateTimeseriesDB(symbol, timeseriesData, db)
                     self.updateStatus(symbol, db)
+
+    def getData(self, symbols, types):
+        data = {}
+        print(types)

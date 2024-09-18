@@ -7,6 +7,12 @@ import json
 # https://yahooquery.dpguthrie.com/guide/ticker/modules/
 
 class QuoteSummary(Base):
+    __modulesForTypes = {
+        'profile': ['quoteType', 'assetProfile', 'fundProfile'],
+        'statistics': ['defaultKeyStatistics', 'summaryDetail'],
+        'price': ['price'],
+    }
+
     def setModuleUpdatePeriods(self):
         mult = 1
         # maybe use actual dates instead of time differences from now ?
@@ -21,15 +27,10 @@ class QuoteSummary(Base):
         }
     
     def setSymbolModules(self):
-        modulesForTypes = {
-            'profile': ['quoteType', 'assetProfile', 'fundProfile'],
-            'statistics': ['defaultKeyStatistics', 'summaryDetail'],
-            'price': ['price'],
-        }
         # find requested modules
         self.modules = set()
         for type in self.types:
-            self.modules = self.modules.union(set(modulesForTypes[type]))
+            self.modules = self.modules.union(set(self.__modulesForTypes[type]))
 
         # collect modules per symbol if update period is over for that module
         self.symbolModules = {}
@@ -202,3 +203,25 @@ class QuoteSummary(Base):
         values, params = db.getRows('quoteType', columns=['keySymbol'])
         return [x[0] for x in values]
 
+    def getData(self, symbols, types):
+        data = {}
+        types = set(types).intersection(self.__modulesForTypes.keys())
+        if len(symbols) == 0 or len(types) == 0: return data
+
+        modules = set()
+        for type in types:
+            modules = modules.union(set(self.__modulesForTypes[type]))
+
+        db = database.Database(self.dbName)
+        for symbol in symbols:
+            data[symbol] = {}
+            for module in modules:
+                values, params = db.getRows(module, whereColumns=['keySymbol'], areValues=[symbol])
+                if len(values) == 0: continue
+                data[symbol][module] = {}
+                for value in values:
+                    index = 1
+                    for param in params[1:]:
+                        data[symbol][module][param] = value[index]
+                        index += 1
+        return data
