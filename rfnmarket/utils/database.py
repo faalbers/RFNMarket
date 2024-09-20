@@ -1,5 +1,6 @@
 import sqlite3, re
 from pprint import pp
+import pandas as pd
 
 # https://www.sqlite.org/lang_select.html
 
@@ -86,6 +87,9 @@ class Database():
             if len(valuesFound) == 0: paramsFound = []
             return valuesFound, paramsFound
         return [], []
+
+    def getTableDataFrame(self, tableName):
+        return pd.read_sql('SELECT * FROM "%s"' % tableName, self.connection)
 
     def test(self):
         # execString = "SELECT ('quoteType','longName') FROM 'quoteType' WHERE 'symbol' = 'VITAX'"
