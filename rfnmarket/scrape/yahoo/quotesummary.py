@@ -3,6 +3,7 @@ from .base import Base
 from pprint import pp
 from datetime import datetime
 import json
+from . import const
 
 # https://yahooquery.dpguthrie.com/guide/ticker/modules/
 
@@ -11,6 +12,7 @@ class QuoteSummary(Base):
         'profile': ['quoteType', 'assetProfile', 'fundProfile'],
         'statistics': ['defaultKeyStatistics', 'summaryDetail'],
         'price': ['price'],
+        'all': list(const.QUOTESUMMARY_MODULES.keys()),
     }
 
     def setModuleUpdatePeriods(self):
