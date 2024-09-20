@@ -8,8 +8,15 @@ import json
 class Tickers(Base):
     dbName = 'polygon_tickers'
 
-    def __init__(self):
+    def updateTables(self, tables):
+        if tables == None: return
+        
+        print('tables: %s' % tables)
+
+    def __init__(self, symbols=[], tables=[]):
         super().__init__()
+
+        self.updateTables(tables)
         
         # check if we need to update stocklist, maybe once every half a year
         updateTime = int(datetime.now().timestamp() - (60*60*24*31*6))
@@ -21,6 +28,8 @@ class Tickers(Base):
         log.info('Polygon Tickers updating')
         log.info('Last time updated: %s' % datetime.fromtimestamp(lastUpdateTime))
 
+        return
+    
         db = database.Database(self.dbName)
 
         nextRequestArgs = {

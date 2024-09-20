@@ -36,8 +36,16 @@ class Chart(Base):
                 self.symbolPeriod1[symbol] = foundSymbolTimestamps[symbol]
             if foundSymbolTimestamps[symbol] < self.lowestTimestamp: self.lowestTimestamp = foundSymbolTimestamps[symbol]
 
-    def __init__(self, symbols=None, types=None):
+    def updateTables(self, tables):
+        if tables == None: return
+        
+        print('tables: %s' % tables)
+
+    def __init__(self, symbols=None, types=None, tables=None):
         super().__init__()
+
+        self.updateTables(tables)
+        
         self.dbName = 'yahoo_chart'
 
         # if we are not updating just use class for data retrieval
@@ -54,6 +62,8 @@ class Chart(Base):
         log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(self.lowestTimestamp)))
         log.info('symbols processing  : %s' % len(self.symbolPeriod1))
 
+        return
+    
         requestArgsList = []
         self.symbols = []
         for symbol, period1 in self.symbolPeriod1.items():

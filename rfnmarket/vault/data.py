@@ -148,7 +148,24 @@ class Data():
     def __init__(self):
         pass
     
-    def getData(self, symbols, catalogs):
+    def update(self, symbols, catalogs):
+        print('update: %s' % catalogs)
+        # gather scrape classes and needed tables
+        scrapeClasses = {}
+        for catalog in catalogs:
+            if catalog in self.__catalog:
+                for param, config in self.__catalog[catalog]['data'].items():
+                    if not config[0] in scrapeClasses:
+                        scrapeClasses[config[0]] = set()
+                    scrapeClasses[config[0]].add(config[1])
+        
+        # create scrapers and pass tables to update
+        for scraperClass, tables in scrapeClasses.items():
+            scraperClass(symbols, tables=tables)
+
+    def getData(self, symbols, catalogs, update=False):
+        if update: self.update(symbols, catalogs)
+        
         data = {}
         for catalog in catalogs:
             dbdata = self.__getDatabaseData(symbols, catalog)

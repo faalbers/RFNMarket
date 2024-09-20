@@ -8,9 +8,18 @@ from datetime import datetime
 class StockList(Base):
     dbName = 'fmp_stocklist'
 
-    def __init__(self):
-        super().__init__()
+    def updateTables(self, tables):
+        if tables == None: return
         
+        print('tables: %s' % tables)
+
+    def __init__(self, symbols=[], tables=[]):
+        super().__init__()
+
+        self.updateTables(tables)
+        
+        return
+    
         # check if we need to update stocklist, maybe once every half a year
         updateTime = int(datetime.now().timestamp() - (60*60*24*31*6))
         # updateTime = int(datetime.now().timestamp())

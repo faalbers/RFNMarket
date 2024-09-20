@@ -10,17 +10,11 @@ from . import const
 class QuoteSummary(Base):
     dbName = 'yahoo_quotesummary'
 
-    __modulesForTypes = {
-        'profile': ['quoteType', 'assetProfile', 'fundProfile'],
-        'statistics': ['defaultKeyStatistics', 'summaryDetail'],
-        'price': ['price'],
-        'all': list(const.QUOTESUMMARY_MODULES.keys()),
-    }
-
-    def setModuleUpdatePeriods(self):
+    @staticmethod
+    def getModuleUpdatePeriods():
         mult = 1
         # maybe use actual dates instead of time differences from now ?
-        self.moduleUpdatePeriods = {
+        moduleUpdatePeriods = {
             'default': mult*60*60*24,
             'price': mult*60*60*24,
             'defaultKeyStatistics': mult*60*60*24,
@@ -29,91 +23,91 @@ class QuoteSummary(Base):
             'assetProfile': mult*60*60*24*31*3,
             'fundProfile': mult*60*60*24*31*3,
         }
+        return moduleUpdatePeriods
     
-    def setSymbolModules(self):
-        # find requested modules
-        self.modules = set()
-        for type in self.types:
-            self.modules = self.modules.union(set(self.__modulesForTypes[type]))
+    def getSymbolModules(self, symbols, tables):
+        modules = set(tables)
+        moduleUpdatePeriods = self.getModuleUpdatePeriods()
+        symbolModules = {}
 
         # collect modules per symbol if update period is over for that module
-        self.symbolModules = {}
-        modulesToBeDone = set()
         db = database.Database(self.dbName)
         now = datetime.now()
-        self.lowestTimestamp = int(now.timestamp())
+        
         values, params = db.getRows('status_db')
+        
+        # get symbol indices of symbols that were last collected
         foundSymbolIndices = {}
         index = 0
         for value in values:
             foundSymbolIndices[value[0]] = index
             index += 1
+        
+        # get mdule indices of modules that were last collected
         foundModuleIndices = {}
         index = 0
         for param in params:
             foundModuleIndices[param] = index
             index += 1
+
         # check all requested symbols
-        for symbol in self.symbols:
+        for symbol in symbols:
             if symbol in foundSymbolIndices:
+                # get status data for symbol
                 value = values[foundSymbolIndices[symbol]]
-                modules = set()
-                for module in self.modules:
+                foundModules = set()
+                for module in modules:
                     if module in foundModuleIndices:
                         moduleTimestamp = value[foundModuleIndices[module]]
                         if moduleTimestamp != None:
                             # check if found modules are in curren symbol's modules list and if there was a moduleTimestamp
-                            if module in self.modules:
-                                updateTimestamp = int(now.timestamp())-self.moduleUpdatePeriods['default']
-                                if module in self.moduleUpdatePeriods:
+                            if module in modules:
+                                # set update timestamp
+                                updateTimestamp = int(now.timestamp())-moduleUpdatePeriods['default']
+                                if module in moduleUpdatePeriods:
                                     # we found it, use that one
-                                    updateTimestamp = int(now.timestamp())-self.moduleUpdatePeriods[module]
-                                # find the lowest module update on all requested symbols
-                                if moduleTimestamp < self.lowestTimestamp: self.lowestTimestamp = moduleTimestamp
-                                # add module module timestamp is lower then the module update timestamp
+                                    updateTimestamp = int(now.timestamp())-moduleUpdatePeriods[module]
+                                
+                                # add module if update timestamp is lower or equal then the module update timestamp
                                 if updateTimestamp >= moduleTimestamp:
-                                    modules.add(module)
-                                    modulesToBeDone.add(module)
+                                    foundModules.add(module)
                         else:
-                            modules.add(module)
-                            modulesToBeDone.add(module)
-                    else:
-                        modules.add(module)
-                        modulesToBeDone.add(module)
-                if len(modules) > 0:
-                    self.symbolModules[symbol] = modules
-            elif len(self.modules) > 0:
-                self.symbolModules[symbol] = set(self.modules)
-                modulesToBeDone = modulesToBeDone.union(self.modules)
-        
-        # update modules with modules to be done
-        self.modules = modulesToBeDone
+                            # added because dymbol does not have these modules done before
+                            foundModules.add(module)
+                # now set the modules that need to be updated for that symbol if there are any
+                if len(foundModules) > 0:
+                    symbolModules[symbol] = foundModules
 
-    def __init__(self, symbols=None, types=None):
+        return symbolModules
+
+    def update(self, symbols, tables):
+        if len(symbols) == 0 or len(symbols) == 0: return {}, set()
+
+        symbolModules = self.getSymbolModules(symbols, tables)
+
+        return symbolModules, set()
+
+    def __init__(self, symbols=[], types=None, tables=[]):
         super().__init__()
-        # if we are not updating just use class for data retrieval
-        if symbols == None or types == None: return
-        
-        # make shore we don't mess up the referenced symbols variable
-        self.symbols = list(symbols)
-        self.types = types
-        self.setModuleUpdatePeriods()
-        self.setSymbolModules()
-        
-        # dont'run if no symbols
-        if len(self.symbolModules) == 0: return
+        # update if needed 
+        symbolModules, modules = self.update(symbols, tables)
+
+        # dont'run  update if no symbols
+        if len(symbolModules) == 0: return
         
         log.info('QuoteSummary update')
-        log.info('types requested     : %s' % " ".join(types))
-        log.info('requested modules   : %s' % " ".join(self.modules))
-        # log.info('update before       : %s' % datetime.fromtimestamp(updateTimestamp))
-        log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(self.lowestTimestamp)))
-        log.info('symbols processing  : %s' % len(self.symbolModules))
+        log.info('requested modules  : %s' % " ".join(tables))
+        log.info('symbols processing : %s' % len(symbolModules))
+
+        # update procs need these
+        self.symbols = [] # accessed by index
+        self.symbolModules = symbolModules
 
         requestArgsList = []
-        self.symbols = []
-        for symbol, modules in self.symbolModules.items():
-            modulesString = ",".join(self.symbolModules[symbol])
+        modulesProcessed = set()
+        for symbol, modules in symbolModules.items():
+            modulesProcessed = modulesProcessed.union(modules)
+            modulesString = ",".join(modules)
             requestArgs = {
                 'url': 'https://query2.finance.yahoo.com/v10/finance/quoteSummary/'+symbol.upper(),
                 'params': {
@@ -125,6 +119,7 @@ class QuoteSummary(Base):
             }
             requestArgsList.append(requestArgs)
             self.symbols.append(symbol)
+        log.info('modules processing : %s' % " ".join(modulesProcessed))
         self.multiRequest(requestArgsList, blockSize=100)
     
     def updateDatabaseRow(self, symbol, module, moduleData, db):

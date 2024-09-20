@@ -73,9 +73,17 @@ class TimeSeries(Base):
         self.tsTypes = set()
         for symbol in self.symbols:
             self.tsTypes = self.tsTypes.union(self.symbolTsTypes[symbol])
-    
-    def __init__(self, symbols=None, types=None):
+
+    def updateTables(self, tables):
+        if tables == None: return
+        
+        print('tables: %s' % tables)
+
+    def __init__(self, symbols=None, types=None, tables=None):
         super().__init__()
+
+        self.updateTables(tables)
+        
         log.info('QuoteSummary update')
         self.dbName = 'yahoo_timeseries'
         # make shore we don't mess up the referenced symbols variable
@@ -93,6 +101,8 @@ class TimeSeries(Base):
         log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(self.lowestTimestamp)))
         log.info('symbols processing  : %s' % len(self.symbols))
 
+        return
+    
         requestArgsList = []
         for symbol in self.symbols:
             period1 = self.symbolPeriod1[symbol]

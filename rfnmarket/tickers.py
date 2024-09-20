@@ -23,9 +23,9 @@ class Tickers():
 
     def __init__(self, logLevel=log.WARNING):
         log.initLogger(logLevel=logLevel)
-        self.fmpStocklist =  scrape.fmp.StockList()
-        self.polygonTickers = scrape.polygon.Tickers()
-        self.savedSaved = scrape.saved.Saved()
+        # self.fmpStocklist =  scrape.fmp.StockList()
+        # self.polygonTickers = scrape.polygon.Tickers()
+        # self.savedSaved = scrape.saved.Saved()
         self.vdata = vault.Data()
 
     def test(self):
@@ -59,8 +59,8 @@ class Tickers():
         for scraperClass, types in scrapers.items():
             scraperClass(symbols, types)
     
-    def getData(self, symbols, catalogs):
-        data = self.vdata.getData(symbols, catalogs)
+    def getData(self, symbols, catalogs, update=False):
+        data = self.vdata.getData(symbols, catalogs, update=update)
         return data
     
     def getSymbols(self):
@@ -89,13 +89,14 @@ class Tickers():
         return data
         
     def getTickerSymbols(self, exchangeCountry=None, includeIndices= False):
-        fmpSymbols = self.fmpStocklist.getStocks(exchangeCountry=exchangeCountry)
+        return None
+        # fmpSymbols = self.fmpStocklist.getStocks(exchangeCountry=exchangeCountry)
         
-        polygonSymbols = self.polygonTickers.getTickers(exchangeCountry=exchangeCountry)
-        if includeIndices:
-            polygonSymbols += self.polygonTickers.getTickers(market='indices')
+        # polygonSymbols = self.polygonTickers.getTickers(exchangeCountry=exchangeCountry)
+        # if includeIndices:
+        #     polygonSymbols += self.polygonTickers.getTickers(market='indices')
        
-        return list(set(fmpSymbols + polygonSymbols))
+        # return list(set(fmpSymbols + polygonSymbols))
     
     def getDataCatalog(self):
         return self.vdata.getCatalog()
@@ -110,8 +111,9 @@ class Tickers():
     #     return ch.getChart(symbol, typeName)
 
     def getQuickenInvestments(self):
-        investments = self.savedSaved.getQuickenInvestments()
-        return investments
+        return None
+        # investments = self.savedSaved.getQuickenInvestments()
+        # return investments
 
 # class TickersOld():
 #     def __init__(self, logLevel=log.WARNING):

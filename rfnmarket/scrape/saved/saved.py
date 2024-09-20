@@ -9,7 +9,17 @@ from pprint import pp
 class Saved():
     dbName = 'saved'
 
-    def __init__(self):
+    def updateTables(self, tables):
+        if tables == None: return
+        
+        print('tables: %s' % tables)
+
+    def __init__(self, symbols=[], tables=[]):
+
+        self.updateTables(tables)
+        
+        return
+    
         self.dataPath = 'database/'
         self.readCSV()
         self.readQuicken()
