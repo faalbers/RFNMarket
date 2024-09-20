@@ -28,6 +28,9 @@ class Tickers():
         self.savedSaved = scrape.saved.Saved()
         self.vdata = vault.Data()
 
+    def test(self):
+        print(scrape.yahoo.QuoteSummary.dbName)
+        
     # @property
     # def test(self):
     #     self.scrapers.add((scrape.yahoo.TimeSeries, 'test'))
@@ -57,9 +60,7 @@ class Tickers():
             scraperClass(symbols, types)
     
     def getData(self, symbols, catalogs):
-        now = datetime.now()
         data = self.vdata.getData(symbols, catalogs)
-        print(datetime.now()-now)
         return data
     
     def getSymbols(self):
