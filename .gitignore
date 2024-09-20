@@ -1,5 +1,6 @@
 /.venv
 /database
+/docs
 __pycache__
 *.db
 *.pickle
