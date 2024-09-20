@@ -6,9 +6,10 @@ import json
 
 # https://polygon.io/
 class Tickers(Base):
+    dbName = 'polygon_tickers'
+
     def __init__(self):
         super().__init__()
-        self.dbName = 'polygon_tickers'
         
         # check if we need to update stocklist, maybe once every half a year
         updateTime = int(datetime.now().timestamp() - (60*60*24*31*6))

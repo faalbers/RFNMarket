@@ -8,6 +8,8 @@ from . import const
 # https://yahooquery.dpguthrie.com/guide/ticker/modules/
 
 class QuoteSummary(Base):
+    dbName = 'yahoo_quotesummary'
+
     __modulesForTypes = {
         'profile': ['quoteType', 'assetProfile', 'fundProfile'],
         'statistics': ['defaultKeyStatistics', 'summaryDetail'],
@@ -89,8 +91,6 @@ class QuoteSummary(Base):
 
     def __init__(self, symbols=None, types=None):
         super().__init__()
-        self.dbName = 'yahoo_quotesummary'
-
         # if we are not updating just use class for data retrieval
         if symbols == None or types == None: return
         

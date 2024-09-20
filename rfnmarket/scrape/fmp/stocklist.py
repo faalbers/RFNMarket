@@ -6,9 +6,10 @@ from datetime import datetime
 # https://financialmodelingprep.com
 
 class StockList(Base):
+    dbName = 'fmp_stocklist'
+
     def __init__(self):
         super().__init__()
-        self.dbName = 'fmp_stocklist'
         
         # check if we need to update stocklist, maybe once every half a year
         updateTime = int(datetime.now().timestamp() - (60*60*24*31*6))

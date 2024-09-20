@@ -1,11 +1,12 @@
 import pandas as pd
 from pprint import pp
 from ..utils import database
+from .. import scrape
 
 class Data():
     @staticmethod
     def __addExchangeData(data):
-        db = database.Database('saved')
+        db = database.Database(scrape.saved.Saved.dbName)
         
         # create mic to country code dict
         micsSaved = db.getTableDataFrame('ISO10383_MIC')
@@ -25,38 +26,20 @@ class Data():
         # create new country name row and add it to DataFrame
         countryList = [ccCountries[micCC[mic]] for mic in data['mic']]
         data.insert(data.columns.get_loc('mic')+1, 'micCountry', countryList)
-
-    @staticmethod
-    def __addExchangeDataOld(data):
-        # get country codes for mics
-        db = database.Database('saved')
-        micsSaved = db.getTableDataFrame('ISO10383_MIC')
-        micsSaved.set_index('MIC', inplace=True)
-        mics = data.loc[:,'mic']
-        countryCodes = []
-        for mic in mics:
-            if mic != None:
-                countryCode = micsSaved.loc[micsSaved.index == 'XNAS'].loc['XNAS','ISO COUNTRY CODE (ISO 3166)']
-                countryCodes.append(countryCode)
-            else:
-                countryCodes.append(None)
-        
-        # add micCountry column
-        data.insert(data.columns.get_loc('mic')+1, 'micCountry', countryCodes)
     
     __catalog = {
         'statistics': {
             'info': 'key ticker statistics',
             'data': {
                 # param_name [db_name, table_name, column_name, make upper]
-                'trailingPE': ['yahoo_quotesummary', 'summaryDetail', 'trailingPE', False],
-                'trailingEps': ['yahoo_quotesummary', 'defaultKeyStatistics', 'trailingEps', False],
-                'forwardEps': ['yahoo_quotesummary', 'defaultKeyStatistics', 'forwardEps', False],
-                'pegRatio': ['yahoo_quotesummary', 'defaultKeyStatistics', 'pegRatio', False],
-                'ttmDividendRate': ['yahoo_quotesummary', 'summaryDetail', 'trailingAnnualDividendRate', False],
-                'earningsGrowth': ['yahoo_quotesummary', 'financialData', 'earningsGrowth', False],
-                'revenueGrowth': ['yahoo_quotesummary', 'financialData', 'revenueGrowth', False],
-                'revenuePerShare': ['yahoo_quotesummary', 'financialData', 'revenuePerShare', False],
+                'trailingPE': [scrape.yahoo.QuoteSummary, 'summaryDetail', 'trailingPE', False],
+                'trailingEps': [scrape.yahoo.QuoteSummary, 'defaultKeyStatistics', 'trailingEps', False],
+                'forwardEps': [scrape.yahoo.QuoteSummary, 'defaultKeyStatistics', 'forwardEps', False],
+                'pegRatio': [scrape.yahoo.QuoteSummary, 'defaultKeyStatistics', 'pegRatio', False],
+                'ttmDividendRate': [scrape.yahoo.QuoteSummary, 'summaryDetail', 'trailingAnnualDividendRate', False],
+                'earningsGrowth': [scrape.yahoo.QuoteSummary, 'financialData', 'earningsGrowth', False],
+                'revenueGrowth': [scrape.yahoo.QuoteSummary, 'financialData', 'revenueGrowth', False],
+                'revenuePerShare': [scrape.yahoo.QuoteSummary, 'financialData', 'revenuePerShare', False],
             },
             'post': [],
         },
@@ -64,19 +47,19 @@ class Data():
             'info': 'ticker company profile information',
             'data': {
                 # param_name [db_name, table_name, column_name, make upper]
-                'name': ['yahoo_quotesummary', 'quoteType', 'longName', False],
-                'exchange': ['fmp_stocklist', 'stocklist', 'exchangeShortName', False],
-                'mic': ['polygon_tickers', 'tickers', 'primary_exchange', False],
-                'market': ['polygon_tickers', 'tickers', 'market', False],
-                'type': ['fmp_stocklist', 'stocklist', 'type', True],
-                'typeCode': ['polygon_tickers', 'tickers', 'type', False],
-                'typeQuote': ['yahoo_quotesummary', 'quoteType', 'quoteType', False],
-                'currency': ['yahoo_quotesummary', 'summaryDetail', 'currency', False],
-                'sector': ['yahoo_quotesummary', 'assetProfile', 'sectorKey', False],
-                'industry': ['yahoo_quotesummary', 'assetProfile', 'industryKey', False],
-                'country': ['yahoo_quotesummary', 'assetProfile', 'country', False],
-                'city': ['yahoo_quotesummary', 'assetProfile', 'city', False],
-                'state': ['yahoo_quotesummary', 'assetProfile', 'state', False],
+                'name': [scrape.yahoo.QuoteSummary, 'quoteType', 'longName', False],
+                'exchange': [scrape.fmp.StockList, 'stocklist', 'exchangeShortName', False],
+                'mic': [scrape.polygon.Tickers, 'tickers', 'primary_exchange', False],
+                'market': [scrape.polygon.Tickers, 'tickers', 'market', False],
+                'type': [scrape.fmp.StockList, 'stocklist', 'type', True],
+                'typeCode': [scrape.polygon.Tickers, 'tickers', 'type', False],
+                'typeQuote': [scrape.yahoo.QuoteSummary, 'quoteType', 'quoteType', False],
+                'currency': [scrape.yahoo.QuoteSummary, 'summaryDetail', 'currency', False],
+                'sector': [scrape.yahoo.QuoteSummary, 'assetProfile', 'sectorKey', False],
+                'industry': [scrape.yahoo.QuoteSummary, 'assetProfile', 'industryKey', False],
+                'country': [scrape.yahoo.QuoteSummary, 'assetProfile', 'country', False],
+                'city': [scrape.yahoo.QuoteSummary, 'assetProfile', 'city', False],
+                'state': [scrape.yahoo.QuoteSummary, 'assetProfile', 'state', False],
             },
             'post': [__addExchangeData],
         },
@@ -137,11 +120,11 @@ class Data():
             sData[symbol] = [None]*len(dfColumns[1:])
         
         # get data database query
-        for dbName, params in dbQuery.items():
-            if dbName == 'yahoo_quotesummary' \
-                or dbName == 'fmp_stocklist' \
-                or dbName == 'polygon_tickers':
-                dbData = self.__getTableColumns(params, symbols, dbName)
+        for scrapeClass, params in dbQuery.items():
+            if scrapeClass == scrape.yahoo.QuoteSummary \
+                or scrapeClass == scrape.fmp.StockList \
+                or scrapeClass == scrape.polygon.Tickers:
+                dbData = self.__getTableColumns(params, symbols, scrapeClass.dbName)
                 for symbol in symbols:
                     index = 0
                     for column in dfColumns[1:]:
@@ -159,8 +142,6 @@ class Data():
 
         for proc in self.__catalog[catalog]['post']:
             proc(df)
-        # print(df.columns)
-        # print(df)
 
         return df
 
@@ -182,6 +163,6 @@ class Data():
         return catalog
     
     def getSymbols(self):
-        db = database.Database('yahoo_quotesummary')
+        db = database.Database(scrape.yahoo.QuoteSummary.dbName)
         values, params = db.getRows('status_db', ['keySymbol'])
         return [x[0] for x in values] 

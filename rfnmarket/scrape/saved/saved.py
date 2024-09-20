@@ -7,6 +7,8 @@ from datetime import datetime
 from pprint import pp
 
 class Saved():
+    dbName = 'saved'
+
     def __init__(self):
         self.dataPath = 'database/'
         self.readCSV()
@@ -14,8 +16,8 @@ class Saved():
 
     def readQuicken(self):
         # get status first
-        db = database.Database('saved')
-        fileDates , dataNames = db.getRows('status_db', whereColumns=['rowid'], areValues=[1])
+        db = database.Database(self.dbName)
+        fileDates , dataNames = db.getRows(self.dbName, whereColumns=['rowid'], areValues=[1])
         statusDates = {}
         index = 0
         for dataName in dataNames:
@@ -35,7 +37,6 @@ class Saved():
 
             # only read data from newer files
             if tableName in statusDates and fileDate >= statusDates[tableName]: continue
-            print('doing this')
             
             db.dropTable(tableName)
             db.createTable(tableName, paramsCreate)
@@ -122,7 +123,7 @@ class Saved():
 
     def readCSV(self):
         cvsFiles = glob.glob(self.dataPath+'*.csv')
-        db = database.Database('saved')
+        db = database.Database(self.dbName)
         # get status first
         fileDates , dataNames = db.getRows('status_db', whereColumns=['rowid'], areValues=[1])
         statusDates = {}
@@ -156,7 +157,7 @@ class Saved():
 
     def getQuickenInvestments(self, withShares=True):
         investments = {}
-        db = database.Database('saved')
+        db = database.Database(self.dbName)
 
         # find QUICKEN table
         db.getTableNames()
