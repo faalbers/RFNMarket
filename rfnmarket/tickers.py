@@ -1,6 +1,8 @@
 from . import scrape
 from .utils import log
 from pprint import pp
+from . import vault
+from datetime import datetime
 
 class Tickers():
     __dataTypes = {
@@ -14,6 +16,9 @@ class Tickers():
             scrape.yahoo.QuoteSummary,
             scrape.yahoo.Chart,
         ],
+        'all': [
+            scrape.yahoo.QuoteSummary,
+        ],
     }
 
     def __init__(self, logLevel=log.WARNING):
@@ -21,6 +26,7 @@ class Tickers():
         self.fmpStocklist =  scrape.fmp.StockList()
         self.polygonTickers = scrape.polygon.Tickers()
         self.savedSaved = scrape.saved.Saved()
+        self.vdata = vault.Data()
 
     # @property
     # def test(self):
@@ -37,10 +43,29 @@ class Tickers():
     #     for scraperClass, types in scrapers.items():
     #         if not scraperClass in scraperObjects:
     #             scraperObjects[scraperClass] = scraperClass(symbols, types)
-    def updateData(self, symbols, types=None):
-        pass
     
-    def getData(self, symbols, types, update=False):
+    def updateData(self, symbols, types):
+        # find scrapers and types to update
+        scrapers = {}
+        for type in set(types).intersection(self.__dataTypes.keys()):
+            for scraperClass in self.__dataTypes[type]:
+                if not scraperClass in scrapers:
+                    scrapers[scraperClass] = []
+                scrapers[scraperClass].append(type)
+        # update data
+        for scraperClass, types in scrapers.items():
+            scraperClass(symbols, types)
+    
+    def getData(self, symbols, catalogs):
+        now = datetime.now()
+        data = self.vdata.getData(symbols, catalogs)
+        print(datetime.now()-now)
+        return data
+    
+    def getSymbols(self):
+        return self.vdata.getSymbols()
+    
+    def getDataOld(self, symbols, types, update=False):
         # find scrapers and types to update
         scrapers = {}
         for type in set(types).intersection(self.__dataTypes.keys()):
@@ -71,6 +96,10 @@ class Tickers():
        
         return list(set(fmpSymbols + polygonSymbols))
     
+    def getDataCatalog(self):
+        return self.vdata.getCatalog()
+    
+
     # def getQuoteTypeSymbols(self):
     #     qs = scrape.yahoo.QuoteSummary()
     #     return qs.getQuoteTypeSymbols()
