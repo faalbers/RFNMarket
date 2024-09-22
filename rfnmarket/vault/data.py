@@ -39,7 +39,7 @@ class Data():
 
         # remove unneeded dataframes
         data.pop('countries')
-        
+
     # sub_table_name: sub table name to be searched
     __catalog = {
         # columnSets: example: ['keySymbol', 'symbol', True, True, True]
@@ -310,22 +310,31 @@ class Data():
         
     def __init__(self):
         pass
-    
+
     def update(self, symbols, catalogs, forceUpdate):
         # gather scrape classes and needed tables
         scrapeClasses = {}
         for catalog in catalogs:
             if catalog in self.__catalog:
-                for param, config in self.__catalog[catalog]['data'].items():
-                    if not config[0] in scrapeClasses:
-                        scrapeClasses[config[0]] = set()
-                    scrapeClasses[config[0]].add(config[1])
+
+                def recursedict(dictData):
+                    if isinstance(dictData, dict):
+                        for key, nextData in dictData.items():
+                            if key == 'scrapes':
+                                for scrape, scrapeData in nextData.items():
+                                    if not scrape in scrapeClasses:
+                                        scrapeClasses[scrape] = []
+                                    scrapeClasses[scrape] += list(scrapeData.keys())
+                                return
+                            recursedict(nextData)
+                recursedict(self.__catalog[catalog])
         
         # create scrapers and pass tables to update
         for scraperClass, tables in scrapeClasses.items():
             scraperClass(symbols, tables=tables, forceUpdate=forceUpdate)
 
     def getData(self, catalogs=[], symbols=[], update=False, forceUpdate=False):
+        if update or forceUpdate: self.update(symbols, catalogs, forceUpdate=forceUpdate)
         data = {}
         for catalog in catalogs:
             dbdata = self.__getDatabaseData(catalog, symbols)
