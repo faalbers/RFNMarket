@@ -36,13 +36,11 @@ class Database():
         return (tableName in self.getTableNames())
 
     def getColumnNames(self, tableName):
-        if self.tableExists(tableName):
-            cursor = self.connection.cursor()
-            foundData = cursor.execute("SELECT * FROM '%s' LIMIT 1" % tableName)
-            columns = [ x[0] for x in foundData.description]
-            cursor.close
-            return columns
-        return []
+        if not self.tableExists(tableName): return pd.DataFrame()
+        df = pd.read_sql("SELECT * FROM '%s' LIMIT 1" % tableName, self.connection)
+        columns = list(df)
+        columns.sort()
+        return columns
 
     def columnExists(self, tableName, column):
         return (column in self.getColumnNames(tableName))
@@ -88,8 +86,19 @@ class Database():
             return valuesFound, paramsFound
         return [], []
 
-    def getTableDataFrame(self, tableName):
-        return pd.read_sql('SELECT * FROM "%s"' % tableName, self.connection)
+    def getTableDataFrame(self, tableName, columns=[], whereColumns=[], areValues=[]):
+        columnsString = '*'
+        if len(columns) > 0:
+            columnsString = ','.join([("[%s]"%x) for x in columns])
+        execString = "SELECT %s FROM '%s'" % (columnsString, tableName)
+        if len(whereColumns) > 0 and len(whereColumns) == len(areValues):
+            whereString = "[%s]" % whereColumns[0]
+            areString = "'%s'" % areValues[0]
+            if len(whereColumns) > 1:
+                whereString = "(%s)"  % ','.join([("[%s]"%x) for x in whereColumns])
+                areString = "(%s)"  % ','.join([("'%s'"%x) for x in areValues])
+            execString += " WHERE %s = %s" % (whereString, areString)
+        return pd.read_sql(execString, self.connection)
 
     def test(self):
         # execString = "SELECT ('quoteType','longName') FROM 'quoteType' WHERE 'symbol' = 'VITAX'"

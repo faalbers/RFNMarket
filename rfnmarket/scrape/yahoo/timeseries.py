@@ -79,7 +79,7 @@ class TimeSeries(Base):
         
         print('tables: %s' % tables)
 
-    def __init__(self, symbols=None, types=None, tables=None):
+    def __init__(self, symbols=None, types=None, tables=None, forceUpdate=False):
         super().__init__()
 
         self.updateTables(tables)

@@ -29,7 +29,9 @@ class Tickers():
         self.vdata = vault.Data()
 
     def test(self):
-        print(scrape.yahoo.QuoteSummary.dbName)
+        catalogs = ['quicken']
+        symbols = ['VZ', 'VITAX', 'BBD', 'MMM', 'AAPL', 'CWEN', 'VALE', 'BA']
+        self.vdata.getDataNew( catalogs , symbols )
         
     # @property
     # def test(self):
@@ -59,8 +61,8 @@ class Tickers():
         for scraperClass, types in scrapers.items():
             scraperClass(symbols, types)
     
-    def getData(self, symbols, catalogs, update=False):
-        data = self.vdata.getData(symbols, catalogs, update=update)
+    def getData(self, symbols, catalogs, update=False, forceUpdate=False):
+        data = self.vdata.getData(symbols, catalogs, update=update, forceUpdate=forceUpdate)
         return data
     
     def getSymbols(self):
@@ -111,9 +113,7 @@ class Tickers():
     #     return ch.getChart(symbol, typeName)
 
     def getQuickenInvestments(self):
-        return None
-        # investments = self.savedSaved.getQuickenInvestments()
-        # return investments
+        return self.vdata.getQuickenInvestments()
 
 # class TickersOld():
 #     def __init__(self, logLevel=log.WARNING):

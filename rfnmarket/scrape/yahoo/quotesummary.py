@@ -11,8 +11,10 @@ class QuoteSummary(Base):
     dbName = 'yahoo_quotesummary'
 
     @staticmethod
-    def getModuleUpdatePeriods():
+    def getModuleUpdatePeriods(forceUpdate):
         mult = 1
+        if forceUpdate:
+            mult = 0
         # maybe use actual dates instead of time differences from now ?
         moduleUpdatePeriods = {
             'default': mult*60*60*24,
@@ -25,9 +27,9 @@ class QuoteSummary(Base):
         }
         return moduleUpdatePeriods
     
-    def getSymbolModules(self, symbols, tables):
+    def getSymbolModules(self, symbols, tables, forceUpdate):
         modules = set(tables)
-        moduleUpdatePeriods = self.getModuleUpdatePeriods()
+        moduleUpdatePeriods = self.getModuleUpdatePeriods(forceUpdate)
         symbolModules = {}
 
         # collect modules per symbol if update period is over for that module
@@ -80,17 +82,17 @@ class QuoteSummary(Base):
 
         return symbolModules
 
-    def update(self, symbols, tables):
+    def update(self, symbols, tables, forceUpdate):
         if len(symbols) == 0 or len(symbols) == 0: return {}, set()
 
-        symbolModules = self.getSymbolModules(symbols, tables)
+        symbolModules = self.getSymbolModules(symbols, tables, forceUpdate)
 
         return symbolModules, set()
 
-    def __init__(self, symbols=[], types=None, tables=[]):
+    def __init__(self, symbols=[], types=None, tables=[], forceUpdate=False):
         super().__init__()
         # update if needed 
-        symbolModules, modules = self.update(symbols, tables)
+        symbolModules, modules = self.update(symbols, tables, forceUpdate=forceUpdate)
 
         # dont'run  update if no symbols
         if len(symbolModules) == 0: return

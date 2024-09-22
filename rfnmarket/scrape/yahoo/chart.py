@@ -4,6 +4,8 @@ from datetime import datetime
 from pprint import pp 
 
 class Chart(Base):
+    dbName = 'yahoo_chart'
+
     def setSymbolPeriod1(self):
         # set all symbols with lowest period1 of 10 years
 
@@ -41,13 +43,13 @@ class Chart(Base):
         
         print('tables: %s' % tables)
 
-    def __init__(self, symbols=None, types=None, tables=None):
+    def __init__(self, symbols=None, types=None, tables=None, forceUpdate=False):
         super().__init__()
 
         self.updateTables(tables)
         
-        self.dbName = 'yahoo_chart'
-
+        print('Running Chart update but not executing')
+        return
         # if we are not updating just use class for data retrieval
         if symbols == None or types == None: return
 

@@ -8,7 +8,7 @@ from datetime import datetime
 class StockList(Base):
     dbName = 'fmp_stocklist'
 
-    def __init__(self, symbols=[], tables=[]):
+    def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()
 
         # check if we need to update stocklist, maybe once every half a year
