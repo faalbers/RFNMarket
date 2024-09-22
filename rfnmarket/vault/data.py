@@ -5,20 +5,213 @@ from .. import scrape
 from datetime import datetime
 
 class Data():
-    @staticmethod
-    def __mergeDataFrames(data):
-        newData = {}
-        for symbol, dataFrames in data.items():
-            names = list(dataFrames.keys())
-            if len(names) == 1:
-                newData[symbol] = dataFrames[names[0]]
-            elif len(names) > 1:
-                dfMerged = dataFrames[names[0]]
-                for name in names[1:]:
-                    dfMerged = pd.merge(dfMerged, dataFrames[name], left_index=True, right_index=True, how='outer')
-                newData[symbol] = dfMerged
-        return newData
+    def __init__(self):
+        pass
 
+    def update(self, symbols, catalogs, forceUpdate):
+        # gather scrape classes and needed tables
+        scrapeClasses = {}
+        for catalog in catalogs:
+            if catalog in self.__catalog:
+
+                def recursedict(dictData):
+                    if isinstance(dictData, dict):
+                        for key, nextData in dictData.items():
+                            if key == 'scrapes':
+                                for scrape, scrapeData in nextData.items():
+                                    if not scrape in scrapeClasses:
+                                        scrapeClasses[scrape] = []
+                                    scrapeClasses[scrape] += list(scrapeData.keys())
+                                return
+                            recursedict(nextData)
+                
+                recursedict(self.__catalog[catalog])
+        
+        # create scrapers and pass tables to update
+        for scraperClass, tables in scrapeClasses.items():
+            scraperClass(symbols, tables=tables, forceUpdate=forceUpdate)
+
+    def getData(self, catalogs=[], symbols=[], update=False, forceUpdate=False):
+        if update or forceUpdate: self.update(symbols, catalogs, forceUpdate=forceUpdate)
+        data = {}
+        for catalog in catalogs:
+            catData =  self.__catalog[catalog]
+            dbdata = {}
+            
+            # get dataframes
+            for dfName , dfData in catData['dataFrames'].items():
+                # DataFrame creation
+                dfTables = {}
+                for scrapeClass, scrapeData in dfData['scrapes'].items():
+                    # access scrape database
+                    db = database.Database(scrapeClass.dbName)
+                    for tableName, tableData in scrapeData.items():
+                        # access database table and create table DataFrame
+
+                        # create columnsSet
+                        # make_index, check_symbols, make upper
+                        columns = {}
+                        for columnSet in tableData['columnSets']:
+                            searchColumn = columnSet[0]
+                            makeColumn = columnSet[1]
+                            if searchColumn == '*':
+                                for columnName in db.getColumnNames(tableName):
+                                    if makeColumn != '':
+                                        newColumnName = makeColumn + columnName.capitalize()
+                                    else:
+                                        newColumnName = makeColumn
+                                    if not columnName in columns:
+                                        columns[columnName] = []
+                                    columns[columnName].append([newColumnName] + columnSet[2:])
+                            else:
+                                if not searchColumn in columns:
+                                    columns[searchColumn] = []
+                                columns[searchColumn].append(columnSet[1:])
+                        dfSearch = db.getTableDataFrame(tableName, columns=list(columns.keys()))
+                        
+                        # build table DataFrame
+                        dfTables[tableName] = pd.DataFrame(index=dfSearch.index)
+                        indexColumns = set()
+                        symbolsColumns = set()
+                        for searchColumn, makeColumnSets in columns.items():
+                            for makeColumnSet in makeColumnSets:
+                                makeColumn = makeColumnSet[0]
+                                makeUpper = makeColumnSet[3]
+                                makeDatetime = makeColumnSet[4]
+                                dfTables[tableName][makeColumn] = dfSearch[searchColumn]
+                                if makeUpper:
+                                    dfTables[tableName][makeColumn] = dfTables[tableName][makeColumn].str.upper()
+                                if makeDatetime:
+                                    dfTables[tableName][makeColumn] = pd.to_datetime(dfTables[tableName][makeColumn], unit='s').dt.tz_localize('US/Pacific')
+                                makeIndex = makeColumnSet[1]
+                                checkSymbols = makeColumnSet[2]
+                                if makeIndex: indexColumns.add(makeColumn)
+                                if checkSymbols: symbolsColumns.add(makeColumn)
+
+                        
+                        if len(symbolsColumns) == 1:
+                            symbolsColumn = symbolsColumns.pop()
+                            dfTables[tableName] = dfTables[tableName][dfTables[tableName][symbolsColumn].isin(symbols)]
+
+                        if len(indexColumns) == 1:
+                            indexColumn = indexColumns.pop()
+                            dfTables[tableName].set_index(indexColumn, inplace=True,verify_integrity = True)
+                
+                dbdata[dfName] = {}
+                
+                #handle post functions
+                if 'postFunctions' in dfData:
+                    if 'merge' in dfData['postFunctions']:
+                        tableNames = list(dfTables)
+                        dfMerged = pd.DataFrame()
+                        for tableName in tableNames:
+                            dfTable = dfTables.pop(tableName)
+                            dfMerged = pd.merge(dfMerged, dfTable, left_index=True, right_index=True, how='outer')
+                        dbdata[dfName]['merged'] = dfMerged
+                    else:
+                        dbdata[dfName] = dfTables
+                    
+                    if 'dropDuplicates' in dfData['postFunctions']:
+                        for tableName , df in dbdata[dfName].items():
+                            df.drop_duplicates(inplace=True)
+                else:
+                    dbdata[dfName] = dfTables
+            
+            # run post procs
+            if 'postProcs' in catData:
+                for proc in catData['postProcs']:
+                    proc(dbdata)
+
+            # get list of DataFrames
+            dfs = []
+            def recursedict(dictData):
+                if isinstance(dictData, dict):
+                    for key, nextData in dictData.items():
+                        recursedict(nextData)
+                        return
+                dfs.append(dictData)
+            recursedict(dbdata)
+            data[catalog] = dfs
+        return data
+
+    def getCatalog(self):
+        catalog = {}
+        for cat, data in self.__catalog.items():
+            catalog[cat] = data['info']
+        return catalog
+    
+    def getSymbols(self):
+        db = database.Database(scrape.yahoo.QuoteSummary.dbName)
+        values, params = db.getRows('status_db', ['keySymbol'])
+        return [x[0] for x in values] 
+
+    def getQuickenInvestments(self, withShares=True, update=False):
+        investments = {}
+        db = database.Database(scrape.saved.Saved.dbName)
+
+        # find QUICKEN table
+        db.getTableNames()
+        tableNames = list(filter(lambda item: item.startswith('QUICKEN'), db.getTableNames()))
+        if len(tableNames) == 0: return investments
+
+        tableName = tableNames[0]
+
+        # find all symbols
+        values, params = db.getRows(tableName, columns=['symbol'])
+        symbols = list(set([x[0] for x in values]))
+        symbols = list(filter(lambda item: not ' ' in item, symbols))
+        symbols = set(symbols)
+
+        # find ingoung params and outgoing params
+        values, params = db.getRows(tableName, columns=['transaction'])
+        transactionParams = list(set([x[0] for x in values]))
+        sharesInParams = set(list(filter(lambda item: item.startswith('Reinv'), transactionParams))+['Buy', 'ShrsIn'])
+        sharesOutParams = set(['Sell', 'ShrsOut'])
+
+        if withShares:
+            # only get symbols that still are invested
+            symbolsWithShares = set()
+            for symbol in symbols:
+                # add incoming shares and substract outgoing shares
+                shares = 0
+                for tParam in sharesInParams:
+                    values, params = db.getRows(tableName, columns=['shares'], whereColumns=['symbol', 'transaction'], areValues=[symbol, tParam])
+                    paramValues = [x[0] for x in values]
+                    paramValues = list(filter(lambda item: item is not None, paramValues))
+                    if len(paramValues) == 0: continue
+                    shares += sum(paramValues)
+                for tParam in sharesOutParams:
+                    values, params = db.getRows(tableName, columns=['shares'], whereColumns=['symbol', 'transaction'], areValues=[symbol, tParam])
+                    paramValues = [x[0] for x in values]
+                    paramValues = list(filter(lambda item: item is not None, paramValues))
+                    if len(paramValues) == 0: continue
+                    shares -= sum(paramValues)
+                
+                # if we still have shares, we keep them
+                if shares > 0.001:
+                    symbolsWithShares.add(symbol)
+
+            symbols = symbolsWithShares
+
+        # get investment data of symbols
+        for symbol in symbols:
+            investments[symbol] = {}
+            values, params = db.getRows(tableName, ['timestamp', 'transaction', 'shares', 'price', 'costBasis'],
+                whereColumns=['symbol'], areValues=[symbol])
+            
+            for value in values:
+                # skip the ones with no shares transaction
+                if value[2] == None: continue
+                data = investments[symbol][value[0]] = {}
+                index = 1
+                for param in params[1:]:
+                    data[param] = value[index]
+                    index += 1
+        
+        return investments
+
+    # post procs
+    
     @staticmethod
     def __addExchangeData(data):
         mics = data['countries']['ISO10383_MIC']
@@ -39,6 +232,20 @@ class Data():
 
         # remove unneeded dataframes
         data.pop('countries')
+
+    # @staticmethod
+    # def __mergeDataFrames(data):
+    #     newData = {}
+    #     for symbol, dataFrames in data.items():
+    #         names = list(dataFrames.keys())
+    #         if len(names) == 1:
+    #             newData[symbol] = dataFrames[names[0]]
+    #         elif len(names) > 1:
+    #             dfMerged = dataFrames[names[0]]
+    #             for name in names[1:]:
+    #                 dfMerged = pd.merge(dfMerged, dataFrames[name], left_index=True, right_index=True, how='outer')
+    #             newData[symbol] = dfMerged
+    #     return newData
 
     # sub_table_name: sub table name to be searched
     __catalog = {
@@ -206,222 +413,14 @@ class Data():
                 },
             },
         },
-        'history': {
-            'info': 'history data for charts and history analysis',
-            'data': {
-                # param_name [scrape_class, table_name, column_name(if *, take all columns and make param_name the suffix), make upper]
-                'price': [scrape.yahoo.Chart, 'indicators', 'close', False],
-                'div': [scrape.yahoo.Chart, 'dividends', 'amount', False],
-                'ind': [scrape.yahoo.Chart, 'indicators', '*', False],
-            },
-            'post': [__mergeDataFrames],
-        },
+        # 'history': {
+        #     'info': 'history data for charts and history analysis',
+        #     'data': {
+        #         # param_name [scrape_class, table_name, column_name(if *, take all columns and make param_name the suffix), make upper]
+        #         'price': [scrape.yahoo.Chart, 'indicators', 'close', False],
+        #         'div': [scrape.yahoo.Chart, 'dividends', 'amount', False],
+        #         'ind': [scrape.yahoo.Chart, 'indicators', '*', False],
+        #     },
+        #     'post': [__mergeDataFrames],
+        # },
     }
-
-    def __getDatabaseData(self, catalog, symbols):
-        catData =  self.__catalog[catalog]
-        data = {}
-        
-        # get dataframes
-        for dfName , dfData in catData['dataFrames'].items():
-            # DataFrame creation
-            dfTables = {}
-            for scrapeClass, scrapeData in dfData['scrapes'].items():
-                # access scrape database
-                db = database.Database(scrapeClass.dbName)
-                for tableName, tableData in scrapeData.items():
-                    # access database table and create table DataFrame
-
-                    # create columnsSet
-                    # make_index, check_symbols, make upper
-                    columns = {}
-                    for columnSet in tableData['columnSets']:
-                        searchColumn = columnSet[0]
-                        makeColumn = columnSet[1]
-                        if searchColumn == '*':
-                            for columnName in db.getColumnNames(tableName):
-                                if makeColumn != '':
-                                    newColumnName = makeColumn + columnName.capitalize()
-                                else:
-                                    newColumnName = makeColumn
-                                if not columnName in columns:
-                                    columns[columnName] = []
-                                columns[columnName].append([newColumnName] + columnSet[2:])
-                        else:
-                            if not searchColumn in columns:
-                                columns[searchColumn] = []
-                            columns[searchColumn].append(columnSet[1:])
-                    dfSearch = db.getTableDataFrame(tableName, columns=list(columns.keys()))
-                    
-                    # build table DataFrame
-                    dfTables[tableName] = pd.DataFrame(index=dfSearch.index)
-                    indexColumns = set()
-                    symbolsColumns = set()
-                    for searchColumn, makeColumnSets in columns.items():
-                        for makeColumnSet in makeColumnSets:
-                            makeColumn = makeColumnSet[0]
-                            makeUpper = makeColumnSet[3]
-                            makeDatetime = makeColumnSet[4]
-                            dfTables[tableName][makeColumn] = dfSearch[searchColumn]
-                            if makeUpper:
-                                dfTables[tableName][makeColumn] = dfTables[tableName][makeColumn].str.upper()
-                            if makeDatetime:
-                                dfTables[tableName][makeColumn] = pd.to_datetime(dfTables[tableName][makeColumn], unit='s').dt.tz_localize('US/Pacific')
-                            makeIndex = makeColumnSet[1]
-                            checkSymbols = makeColumnSet[2]
-                            if makeIndex: indexColumns.add(makeColumn)
-                            if checkSymbols: symbolsColumns.add(makeColumn)
-
-                    
-                    if len(symbolsColumns) == 1:
-                        symbolsColumn = symbolsColumns.pop()
-                        dfTables[tableName] = dfTables[tableName][dfTables[tableName][symbolsColumn].isin(symbols)]
-
-                    if len(indexColumns) == 1:
-                        indexColumn = indexColumns.pop()
-                        dfTables[tableName].set_index(indexColumn, inplace=True,verify_integrity = True)
-            
-            data[dfName] = {}
-            
-            #handle post functions
-            if 'postFunctions' in dfData:
-                if 'merge' in dfData['postFunctions']:
-                    tableNames = list(dfTables)
-                    dfMerged = pd.DataFrame()
-                    for tableName in tableNames:
-                        dfTable = dfTables.pop(tableName)
-                        dfMerged = pd.merge(dfMerged, dfTable, left_index=True, right_index=True, how='outer')
-                    data[dfName]['merged'] = dfMerged
-                else:
-                    data[dfName] = dfTables
-                
-                if 'dropDuplicates' in dfData['postFunctions']:
-                    for tableName , df in data[dfName].items():
-                        df.drop_duplicates(inplace=True)
-            else:
-                data[dfName] = dfTables
-        
-        # run post procs
-        if 'postProcs' in catData:
-            for proc in catData['postProcs']:
-                proc(data)
-
-        return data
-        
-    def __init__(self):
-        pass
-
-    def update(self, symbols, catalogs, forceUpdate):
-        # gather scrape classes and needed tables
-        scrapeClasses = {}
-        for catalog in catalogs:
-            if catalog in self.__catalog:
-
-                def recursedict(dictData):
-                    if isinstance(dictData, dict):
-                        for key, nextData in dictData.items():
-                            if key == 'scrapes':
-                                for scrape, scrapeData in nextData.items():
-                                    if not scrape in scrapeClasses:
-                                        scrapeClasses[scrape] = []
-                                    scrapeClasses[scrape] += list(scrapeData.keys())
-                                return
-                            recursedict(nextData)
-                recursedict(self.__catalog[catalog])
-        
-        # create scrapers and pass tables to update
-        for scraperClass, tables in scrapeClasses.items():
-            scraperClass(symbols, tables=tables, forceUpdate=forceUpdate)
-
-    def getData(self, catalogs=[], symbols=[], update=False, forceUpdate=False):
-        if update or forceUpdate: self.update(symbols, catalogs, forceUpdate=forceUpdate)
-        data = {}
-        for catalog in catalogs:
-            dbdata = self.__getDatabaseData(catalog, symbols)
-            # get list of DataFrames
-            dfs = []
-            def recursedict(dictData):
-                if isinstance(dictData, dict):
-                    for key, nextData in dictData.items():
-                        recursedict(nextData)
-                        return
-                dfs.append(dictData)
-            recursedict(dbdata)
-            data[catalog] = dfs
-        return data
-
-    def getCatalog(self):
-        catalog = {}
-        for cat, data in self.__catalog.items():
-            catalog[cat] = data['info']
-        return catalog
-    
-    def getSymbols(self):
-        db = database.Database(scrape.yahoo.QuoteSummary.dbName)
-        values, params = db.getRows('status_db', ['keySymbol'])
-        return [x[0] for x in values] 
-
-    def getQuickenInvestments(self, withShares=True, update=False):
-        investments = {}
-        db = database.Database(scrape.saved.Saved.dbName)
-
-        # find QUICKEN table
-        db.getTableNames()
-        tableNames = list(filter(lambda item: item.startswith('QUICKEN'), db.getTableNames()))
-        if len(tableNames) == 0: return investments
-
-        tableName = tableNames[0]
-
-        # find all symbols
-        values, params = db.getRows(tableName, columns=['symbol'])
-        symbols = list(set([x[0] for x in values]))
-        symbols = list(filter(lambda item: not ' ' in item, symbols))
-        symbols = set(symbols)
-
-        # find ingoung params and outgoing params
-        values, params = db.getRows(tableName, columns=['transaction'])
-        transactionParams = list(set([x[0] for x in values]))
-        sharesInParams = set(list(filter(lambda item: item.startswith('Reinv'), transactionParams))+['Buy', 'ShrsIn'])
-        sharesOutParams = set(['Sell', 'ShrsOut'])
-
-        if withShares:
-            # only get symbols that still are invested
-            symbolsWithShares = set()
-            for symbol in symbols:
-                # add incoming shares and substract outgoing shares
-                shares = 0
-                for tParam in sharesInParams:
-                    values, params = db.getRows(tableName, columns=['shares'], whereColumns=['symbol', 'transaction'], areValues=[symbol, tParam])
-                    paramValues = [x[0] for x in values]
-                    paramValues = list(filter(lambda item: item is not None, paramValues))
-                    if len(paramValues) == 0: continue
-                    shares += sum(paramValues)
-                for tParam in sharesOutParams:
-                    values, params = db.getRows(tableName, columns=['shares'], whereColumns=['symbol', 'transaction'], areValues=[symbol, tParam])
-                    paramValues = [x[0] for x in values]
-                    paramValues = list(filter(lambda item: item is not None, paramValues))
-                    if len(paramValues) == 0: continue
-                    shares -= sum(paramValues)
-                
-                # if we still have shares, we keep them
-                if shares > 0.001:
-                    symbolsWithShares.add(symbol)
-
-            symbols = symbolsWithShares
-
-        # get investment data of symbols
-        for symbol in symbols:
-            investments[symbol] = {}
-            values, params = db.getRows(tableName, ['timestamp', 'transaction', 'shares', 'price', 'costBasis'],
-                whereColumns=['symbol'], areValues=[symbol])
-            
-            for value in values:
-                # skip the ones with no shares transaction
-                if value[2] == None: continue
-                data = investments[symbol][value[0]] = {}
-                index = 1
-                for param in params[1:]:
-                    data[param] = value[index]
-                    index += 1
-        
-        return investments
