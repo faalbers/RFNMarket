@@ -8,7 +8,7 @@ class Data():
     def __init__(self):
         pass
 
-    def update(self, symbols, catalogs, forceUpdate):
+    def updateData(self, catalogs=[], symbols=[], forceUpdate=False):
         # gather scrape classes and needed tables
         scrapeClasses = {}
         for catalog in catalogs:
@@ -32,7 +32,7 @@ class Data():
             scraperClass(symbols, tables=tables, forceUpdate=forceUpdate)
 
     def getData(self, catalogs=[], symbols=[], update=False, forceUpdate=False):
-        if update or forceUpdate: self.update(symbols, catalogs, forceUpdate=forceUpdate)
+        if update or forceUpdate: self.updateData(catalogs, symbols, forceUpdate=forceUpdate)
         data = {}
         for catalog in catalogs:
             catData =  self.__catalog[catalog]
@@ -123,15 +123,18 @@ class Data():
                     proc(dbdata)
 
             # get list of DataFrames
-            dfs = []
-            def recursedict(dictData):
-                if isinstance(dictData, dict):
-                    for key, nextData in dictData.items():
-                        recursedict(nextData)
-                        return
-                dfs.append(dictData)
-            recursedict(dbdata)
-            data[catalog] = dfs
+            # dfs = []
+            # def recursedict(dictData):
+            #     if isinstance(dictData, dict):
+            #         for key, nextData in dictData.items():
+            #             recursedict(nextData)
+            #     else:
+            #         print(type(dictData))
+            #         dfs.append(dictData)
+            # recursedict(dbdata)
+            # data[catalog] = dfs
+            
+            data[catalog] = dbdata
         return data
 
     def getCatalog(self):
@@ -250,14 +253,14 @@ class Data():
     # sub_table_name: sub table name to be searched
     __catalog = {
         # columnSets: example: ['keySymbol', 'symbol', True, True, True]
-        # [column_search, column_name, make_index, check_symbols, make upper, make_datetime]
+        # [column_search, column_name, make_index, check_symbols, make_upper, make_datetime]
         # column_search: column name of the querried column
         #              if value is '*' take all columns and capitalise name if column_name is not empty
         #              then add column_name as suffix
         # column_name: final name of the column
         # make_index: make parameter the index and make it unique
         # check_symbols: cross check with symbols
-        # make_upper_case: make this data upper case
+        # make_upper: make this data upper case
         # make_datetime: turn collumn timestamps into Datetime
         'statistics': {
             'info': 'ticker company profile information',
@@ -320,7 +323,7 @@ class Data():
         },
         'profile': {
             'info': 'ticker company profile information',
-            'postProcs': [__addExchangeData],
+            # 'postProcs': [__addExchangeData],
             'dataFrames': {
                 'profile': {
                     'postFunctions': ['merge'],
@@ -406,7 +409,41 @@ class Data():
                                     ['shares', 'shares', False, False, False, False],
                                     # ['*', 'ex', False, False, False, False],
                                 ],
-                                'subTable': None,
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        'chart': {
+            'info': 'chart data',
+            'dataFrames': {
+                'chart': {
+                    'scrapes': {
+                        scrape.yahoo.Chart: {
+                            'indicators': {
+                                'columnSets': [
+                                    ['keySymbol', 'symbol', True, True, True, False],
+                                    ['tableName', 'tableName', False, False, False, False],
+                                ],
+                            },
+                            'dividends': {
+                                'columnSets': [
+                                    ['keySymbol', 'symbol', True, True, True, False],
+                                    ['tableName', 'tableName', False, False, False, False],
+                                ],
+                            },
+                            'splits': {
+                                'columnSets': [
+                                    ['keySymbol', 'symbol', True, True, True, False],
+                                    ['tableName', 'tableName', False, False, False, False],
+                                ],
+                            },
+                            'capitalGains': {
+                                'columnSets': [
+                                    ['keySymbol', 'symbol', True, True, True, False],
+                                    ['tableName', 'tableName', False, False, False, False],
+                                ],
                             },
                         },
                     },
