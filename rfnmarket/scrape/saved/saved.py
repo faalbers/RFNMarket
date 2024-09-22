@@ -18,7 +18,7 @@ class Saved():
     def readQuicken(self):
         # get status first
         db = database.Database(self.dbName)
-        fileDates , dataNames = db.getRows(self.dbName, whereColumns=['rowid'], areValues=[1])
+        fileDates , dataNames = db.getRows('status_db', whereColumns=['rowid'], areValues=[1])
         statusDates = {}
         index = 0
         for dataName in dataNames:
@@ -37,9 +37,9 @@ class Saved():
             tableName = 'QUICKEN_'+dataName
 
             # only read data from newer files
-            print('Quicken ?')
-            if tableName in statusDates and fileDate >= statusDates[tableName]: continue
-            print('Quicken Yes')
+            if tableName in statusDates and fileDate <= statusDates[tableName]: continue
+
+            log.info('Update saved: %s' % dataName)
             
             db.dropTable(tableName)
             db.createTable(tableName, paramsCreate)
@@ -142,8 +142,10 @@ class Saved():
             dataName = Path(cvsFile).stem
             
             # only read data from newer files
-            if dataName in statusDates and fileDate >= statusDates[dataName]: continue
+            if dataName in statusDates and fileDate <= statusDates[dataName]: continue
             
+            log.info('Update saved: %s' % dataName)
+
             # read file into database
             data = pd.read_csv(cvsFile)
             data.to_sql(dataName, con=connection, index=False, if_exists='replace')
