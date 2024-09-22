@@ -61,8 +61,8 @@ class Tickers():
         for scraperClass, types in scrapers.items():
             scraperClass(symbols, types)
     
-    def getData(self, symbols, catalogs, update=False, forceUpdate=False):
-        data = self.vdata.getData(symbols, catalogs, update=update, forceUpdate=forceUpdate)
+    def getData(self, catalogs, symbols, update=False, forceUpdate=False):
+        data = self.vdata.getData(catalogs, symbols, update=update, forceUpdate=forceUpdate)
         return data
     
     def getSymbols(self):
