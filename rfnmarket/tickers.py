@@ -49,22 +49,26 @@ class Tickers():
     #         if not scraperClass in scraperObjects:
     #             scraperObjects[scraperClass] = scraperClass(symbols, types)
     
-    def updateData(self, symbols, types):
-        # find scrapers and types to update
-        scrapers = {}
-        for type in set(types).intersection(self.__dataTypes.keys()):
-            for scraperClass in self.__dataTypes[type]:
-                if not scraperClass in scrapers:
-                    scrapers[scraperClass] = []
-                scrapers[scraperClass].append(type)
-        # update data
-        for scraperClass, types in scrapers.items():
-            scraperClass(symbols, types)
+    # def updateData(self, symbols, types):
+    #     # find scrapers and types to update
+    #     scrapers = {}
+    #     for type in set(types).intersection(self.__dataTypes.keys()):
+    #         for scraperClass in self.__dataTypes[type]:
+    #             if not scraperClass in scrapers:
+    #                 scrapers[scraperClass] = []
+    #             scrapers[scraperClass].append(type)
+    #     # update data
+    #     for scraperClass, types in scrapers.items():
+    #         scraperClass(symbols, types)
+
     
+    def updateData(self, catalogs, symbols, forceUpdate=False):
+        self.vdata.updateData(catalogs, symbols, forceUpdate=forceUpdate)
+
     def getData(self, catalogs, symbols, update=False, forceUpdate=False):
         data = self.vdata.getData(catalogs, symbols, update=update, forceUpdate=forceUpdate)
         return data
-    
+
     def getSymbols(self):
         return self.vdata.getSymbols()
     

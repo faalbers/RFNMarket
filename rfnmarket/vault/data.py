@@ -1,8 +1,9 @@
 import pandas as pd
 from pprint import pp
-from ..utils import database
+from ..utils import database, log
 from .. import scrape
 from datetime import datetime
+import copy
 
 class Data():
     def __init__(self):
@@ -31,11 +32,15 @@ class Data():
         for scraperClass, tables in scrapeClasses.items():
             scraperClass(symbols, tables=tables, forceUpdate=forceUpdate)
 
-    def getData(self, catalogs=[], symbols=[], update=False, forceUpdate=False):
+    def getData(self, catalogs=[], symbols=[], update=False, forceUpdate=False, catalogDB=None):
         if update or forceUpdate: self.updateData(catalogs, symbols, forceUpdate=forceUpdate)
         data = {}
+        
         for catalog in catalogs:
-            catData =  self.__catalog[catalog]
+            if catalogDB != None:
+                catData =  catalogDB[catalog]
+            else:
+                catData =  self.__catalog[catalog]
             dbdata = {}
             
             # get dataframes
@@ -96,7 +101,8 @@ class Data():
                         if len(indexColumns) == 1:
                             indexColumn = indexColumns.pop()
                             dfTables[tableName].set_index(indexColumn, inplace=True,verify_integrity = True)
-                
+                    # delete for if it needs to be reopened
+                    del db
                 dbdata[dfName] = {}
                 
                 #handle post functions
@@ -120,7 +126,7 @@ class Data():
             # run post procs
             if 'postProcs' in catData:
                 for proc in catData['postProcs']:
-                    proc(dbdata)
+                    dbdata = proc(self, dbdata)
 
             # get list of DataFrames
             # dfs = []
@@ -216,7 +222,7 @@ class Data():
     # post procs
     
     @staticmethod
-    def __addExchangeData(data):
+    def __addExchangeData(self, data):
         mics = data['countries']['ISO10383_MIC']
         mics.loc['*'] = None
         countries = data['countries']['ISO3166-1']
@@ -236,21 +242,75 @@ class Data():
         # remove unneeded dataframes
         data.pop('countries')
 
-    # @staticmethod
-    # def __mergeDataFrames(data):
-    #     newData = {}
-    #     for symbol, dataFrames in data.items():
-    #         names = list(dataFrames.keys())
-    #         if len(names) == 1:
-    #             newData[symbol] = dataFrames[names[0]]
-    #         elif len(names) > 1:
-    #             dfMerged = dataFrames[names[0]]
-    #             for name in names[1:]:
-    #                 dfMerged = pd.merge(dfMerged, dataFrames[name], left_index=True, right_index=True, how='outer')
-    #             newData[symbol] = dfMerged
-    #     return newData
+    @staticmethod
+    def __getChartData(self, data):
+        catalogDB = {
+            'mychart': {
+                'dataFrames': {
+                },
+            },
+        }
+        dataframe = {
+            'postFunctions': ['merge'],
+            'scrapes': {
+                scrape.yahoo.Chart: {
+                },
+            },
+        }
+        tableTypes = {
+            'indicators': {
+                'columnSets': [
+                    ['timestamp', 'timestamp', True, False, False, True],
+                    ['open', 'open', False, False, False, False],
+                    ['open', 'close', False, False, False, False],
+                    ['adjclose', 'adjclose', False, False, False, False],
+                    ['high', 'high', False, False, False, False],
+                    ['low', 'low', False, False, False, False],
+                    ['volume', 'volume', False, False, False, False],
+                ],
+            },
+            'dividends': {
+                'columnSets': [
+                    ['timestamp', 'timestamp', True, False, False, True],
+                    ['amount', 'dividend', False, False, False, False],
+                ],
+            },
+            'capitalGains': {
+                'columnSets': [
+                    ['timestamp', 'timestamp', True, False, False, True],
+                    ['amount', 'capitalGain', False, False, False, False],
+                ],
+            },
+            'splits': {
+                'columnSets': [
+                    ['timestamp', 'timestamp', True, False, False, True],
+                    ['denominator', 'denominator', False, False, False, False],
+                    ['numerator', 'numerator', False, False, False, False],
+                    ['splitRatio', 'splitRatio', False, False, False, False],
+                ],
+            },
+        }
+        dfTables = data['chart']['merged']
 
-    # sub_table_name: sub table name to be searched
+        # create catalogDB
+        catalogDB = {
+            'mychart': {
+                'dataFrames': {
+                },
+            },
+        }
+        for symbol, row in dfTables.iterrows():
+            sdataframe = copy.deepcopy(dataframe)
+            for tableType in row.index:
+                tableName = row[tableType]
+                if tableName == tableName:
+                    sdataframe['scrapes'][scrape.yahoo.Chart][tableName] = tableTypes[tableType].copy()
+            catalogDB['mychart']['dataFrames'][symbol] = sdataframe
+
+        mychartData = self.getData(['mychart'], catalogDB=catalogDB)
+
+        return mychartData
+
     __catalog = {
         # columnSets: example: ['keySymbol', 'symbol', True, True, True]
         # [column_search, column_name, make_index, check_symbols, make_upper, make_datetime]
@@ -323,7 +383,7 @@ class Data():
         },
         'profile': {
             'info': 'ticker company profile information',
-            # 'postProcs': [__addExchangeData],
+            'postProcs': [__addExchangeData],
             'dataFrames': {
                 'profile': {
                     'postFunctions': ['merge'],
@@ -417,32 +477,34 @@ class Data():
         },
         'chart': {
             'info': 'chart data',
+            'postProcs': [__getChartData],
             'dataFrames': {
                 'chart': {
+                    'postFunctions': ['merge'],
                     'scrapes': {
                         scrape.yahoo.Chart: {
                             'indicators': {
                                 'columnSets': [
                                     ['keySymbol', 'symbol', True, True, True, False],
-                                    ['tableName', 'tableName', False, False, False, False],
+                                    ['tableName', 'indicators', False, False, False, False],
                                 ],
                             },
                             'dividends': {
                                 'columnSets': [
                                     ['keySymbol', 'symbol', True, True, True, False],
-                                    ['tableName', 'tableName', False, False, False, False],
+                                    ['tableName', 'dividends', False, False, False, False],
                                 ],
                             },
                             'splits': {
                                 'columnSets': [
                                     ['keySymbol', 'symbol', True, True, True, False],
-                                    ['tableName', 'tableName', False, False, False, False],
+                                    ['tableName', 'splits', False, False, False, False],
                                 ],
                             },
                             'capitalGains': {
                                 'columnSets': [
                                     ['keySymbol', 'symbol', True, True, True, False],
-                                    ['tableName', 'tableName', False, False, False, False],
+                                    ['tableName', 'capitalGains', False, False, False, False],
                                 ],
                             },
                         },
@@ -450,14 +512,4 @@ class Data():
                 },
             },
         },
-        # 'history': {
-        #     'info': 'history data for charts and history analysis',
-        #     'data': {
-        #         # param_name [scrape_class, table_name, column_name(if *, take all columns and make param_name the suffix), make upper]
-        #         'price': [scrape.yahoo.Chart, 'indicators', 'close', False],
-        #         'div': [scrape.yahoo.Chart, 'dividends', 'amount', False],
-        #         'ind': [scrape.yahoo.Chart, 'indicators', '*', False],
-        #     },
-        #     'post': [__mergeDataFrames],
-        # },
     }
