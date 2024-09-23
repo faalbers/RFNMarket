@@ -7,7 +7,12 @@ import copy
 
 class Data():
     def __init__(self):
-        pass
+        self.databases = {}
+    
+    def getScrapeDB(self, scrapeClass):
+        if not scrapeClass in self.databases:
+            self.databases[scrapeClass] = database.Database(scrapeClass.dbName)
+        return self.databases[scrapeClass]
 
     def updateData(self, catalogs=[], symbols=[], forceUpdate=False):
         # gather scrape classes and needed tables
@@ -49,7 +54,7 @@ class Data():
                 dfTables = {}
                 for scrapeClass, scrapeData in dfData['scrapes'].items():
                     # access scrape database
-                    db = database.Database(scrapeClass.dbName)
+                    db = self.getScrapeDB(scrapeClass)
                     for tableName, tableData in scrapeData.items():
                         # access database table and create table DataFrame
 
@@ -138,13 +143,13 @@ class Data():
         return catalog
     
     def getSymbols(self):
-        db = database.Database(scrape.yahoo.QuoteSummary.dbName)
+        db = self.getScrapeDB(scrape.yahoo.QuoteSummary)
         values, params = db.getRows('status_db', ['keySymbol'])
         return [x[0] for x in values] 
 
     def getQuickenInvestments(self, withShares=True, update=False):
         investments = {}
-        db = database.Database(scrape.saved.Saved.dbName)
+        db = self.getScrapeDB(scrape.saved.Saved)
 
         # find QUICKEN table
         db.getTableNames()
