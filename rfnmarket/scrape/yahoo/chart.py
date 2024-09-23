@@ -10,8 +10,7 @@ class Chart(Base):
         # set all symbols with lowest period1 of 10 years
 
         # check last timestamp of symbols in quote database
-        db = database.Database(self.dbName)
-        values, params = db.getRows('status_db')
+        values, params = self.db.getRows('status_db')
         foundSymbolTimestamps = {}
         for value in values:
             foundSymbolTimestamps[value[0]] = value[1]
@@ -38,7 +37,11 @@ class Chart(Base):
 
     def __init__(self, symbols=None, types=None, tables=None, forceUpdate=False):
         super().__init__()
+        
+        # setup database
+        self.db = database.Database(self.dbName)
 
+        # lets see if we need an update
         symbolPeriod1 = self.update(symbols, forceUpdate=False)
 
         # guess there is nothing to update
@@ -79,10 +82,9 @@ class Chart(Base):
     
     def updateStatus(self, symbol):
         start = datetime.now()
-        db = database.Database(self.dbName)
-        db.createTable('status_db', ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP"])
-        db.insertOrIgnore('status_db', ['keySymbol'], (symbol,))
-        db.update( 'status_db', 'keySymbol', symbol, ['timestamp'], tuple([int(datetime.now().timestamp())]) )
+        self.db.createTable('status_db', ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP"])
+        self.db.insertOrIgnore('status_db', ['keySymbol'], (symbol,))
+        self.db.update( 'status_db', 'keySymbol', symbol, ['timestamp'], tuple([int(datetime.now().timestamp())]) )
         # log.info('status time : %s: %s' % (datetime.now()- start, symbol))
 
     def updateChartDB(self, symbol, typeName, chartData):
@@ -107,12 +109,11 @@ class Chart(Base):
                 tableName += '_'
 
         # create typeName table and symbol entry
-        db = database.Database(self.dbName)
-        db.createTable(typeName, ["'keySymbol' TEXT PRIMARY KEY", "'tableName' TEXT"])
-        db.insertOrIgnore(typeName, ['keySymbol', 'tableName'], (symbol, tableName))
+        self.db.createTable(typeName, ["'keySymbol' TEXT PRIMARY KEY", "'tableName' TEXT"])
+        self.db.insertOrIgnore(typeName, ['keySymbol', 'tableName'], (symbol, tableName))
         
         # create chart table for keySymbol
-        db.createTable(tableName, params)
+        self.db.createTable(tableName, params)
 
         # gather data to write
         params = [x.split(' ')[0].strip("'")  for x in params]
@@ -122,7 +123,7 @@ class Chart(Base):
             for param in params[1:]:
                 value.append(timestampData[param])
             values.append(tuple(value))
-        db.insertOrIgnore(tableName, params, values)
+        self.db.insertOrIgnore(tableName, params, values)
         seconds = datetime.now().timestamp()-start.timestamp()
         secPerWrite = seconds / len(chartData)
         overTime = (seconds > 0.4)
@@ -133,7 +134,6 @@ class Chart(Base):
         symbol = self.symbols[symbolIndex]
         # log.info('request time: %s: %s' % (datetime.now()- self.start, symbol))
         start = datetime.now()
-        db = database.Database(self.dbName)
         if response.headers.get('content-type').startswith('application/json'):
             symbolData = response.json()
             if 'chart' in symbolData:
@@ -183,11 +183,10 @@ class Chart(Base):
     
     def getChart(self, symbol, typeName):
         chart = {}
-        db = database.Database(self.dbName)
-        values, params = db.getRows(typeName, columns=['tableName'], whereColumns=['keySymbol'], areValues=[symbol])
+        values, params = self.db.getRows(typeName, columns=['tableName'], whereColumns=['keySymbol'], areValues=[symbol])
         if len(values) == 0 or len(values[0]) == 0: return chart
         tableName = values[0][0]
-        values, params = db.getRows(tableName)
+        values, params = self.db.getRows(tableName)
         for value in values:
             timestamp = value[0]
             chart[timestamp] = {}

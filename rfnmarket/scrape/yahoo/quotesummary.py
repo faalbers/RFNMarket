@@ -33,10 +33,9 @@ class QuoteSummary(Base):
         symbolModules = {}
 
         # collect modules per symbol if update period is over for that module
-        db = database.Database(self.dbName)
         now = datetime.now()
         
-        values, params = db.getRows('status_db')
+        values, params = self.db.getRows('status_db')
         
         # get symbol indices of symbols that were last collected
         foundSymbolIndices = {}
@@ -91,6 +90,7 @@ class QuoteSummary(Base):
 
     def __init__(self, symbols=[], types=None, tables=[], forceUpdate=False):
         super().__init__()
+        self.db = database.Database(self.dbName)
         # update if needed 
         # modules not used , might as well remove it, it's always empty
         symbolModules, modules = self.update(symbols, tables, forceUpdate=forceUpdate)
@@ -125,59 +125,58 @@ class QuoteSummary(Base):
         log.info('modules processing : %s' % " ".join(modulesProcessed))
         self.multiRequest(requestArgsList, blockSize=100)
     
-    def updateDatabaseRow(self, symbol, module, moduleData, db):
-            db.createTable(module, ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP"])
-            db.insertOrIgnore(module, ['keySymbol'], (symbol,))
+    def updateDatabaseRow(self, symbol, module, moduleData):
+            self.db.createTable(module, ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP"])
+            self.db.insertOrIgnore(module, ['keySymbol'], (symbol,))
             params = ['timestamp']
             values = [int(datetime.now().timestamp())]
             missedTypes = set()
             for param, value in moduleData.items():
                 if isinstance(value, int):
-                    db.addColumn(module, param, 'INTEGER')
+                    self.db.addColumn(module, param, 'INTEGER')
                     params.append(param)
                     values.append(value)
                 elif isinstance(value, float):
-                    db.addColumn(module, param, 'FLOAT')
+                    self.db.addColumn(module, param, 'FLOAT')
                     params.append(param)
                     values.append(value)
                 elif isinstance(value, str):
-                    db.addColumn(module, param, 'TEXT')
+                    self.db.addColumn(module, param, 'TEXT')
                     params.append(param)
                     values.append(value)
                 elif isinstance(value, bool):
-                    db.addColumn(module, param, 'BOOLEAN')
+                    self.db.addColumn(module, param, 'BOOLEAN')
                     params.append(param)
                     values.append(value)
                 elif isinstance(value, list):
-                    db.addColumn(module, param, 'JSON')
+                    self.db.addColumn(module, param, 'JSON')
                     params.append(param)
                     values.append(json.dumps(value))
                 elif isinstance(value, dict):
-                    db.addColumn(module, param, 'JSON')
+                    self.db.addColumn(module, param, 'JSON')
                     params.append(param)
                     values.append(json.dumps(value))
                 elif isinstance(value, type(None)):
                     pass
                 else:
                     missedTypes.add(type(value))
-            db.update( module, 'keySymbol', symbol, params, tuple(values) )
+            self.db.update( module, 'keySymbol', symbol, params, tuple(values) )
             if len(missedTypes) > 0:
                 log.info('QuoteSummary: missed data types: %s' % list(missedTypes))
 
-    def updateStatus(self, symbol, db):
-        db.createTable('status_db', ["'keySymbol' TEXT PRIMARY KEY"])
-        db.insertOrIgnore('status_db', ['keySymbol'], (symbol,))
+    def updateStatus(self, symbol):
+        self.db.createTable('status_db', ["'keySymbol' TEXT PRIMARY KEY"])
+        self.db.insertOrIgnore('status_db', ['keySymbol'], (symbol,))
         params = []
         values = []
         for module in self.symbolModules[symbol]:
-            db.addColumn('status_db', module, 'TIMESTAMP')
+            self.db.addColumn('status_db', module, 'TIMESTAMP')
             params.append(module)
             values.append(int(datetime.now().timestamp()))
-        db.update( 'status_db', 'keySymbol', symbol, params, tuple(values) )
+        self.db.update( 'status_db', 'keySymbol', symbol, params, tuple(values) )
 
     def pushAPIData(self, symbolIndex, response):
         symbol = self.symbols[symbolIndex]
-        db = database.Database(self.dbName)
         if response.headers.get('content-type').startswith('application/json'):
             symbolData = response.json()
             if 'quoteSummary' in symbolData:
@@ -190,17 +189,16 @@ class QuoteSummary(Base):
                     # handle data return response
                     symbolData = symbolData['result'][0]
                     for module, moduleData in symbolData.items():
-                        self.updateDatabaseRow(symbol, module, moduleData, db)
+                        self.updateDatabaseRow(symbol, module, moduleData)
             if 'finance' in symbolData:
                 # handle other possible errors
                 symbolData = symbolData['finance']
                 if symbolData['error'] != None:
                     symbolData = symbolData['error']
-        self.updateStatus(symbol, db)
+        self.updateStatus(symbol)
 
     def getQuoteTypeSymbols(self):
-        db = database.Database(self.dbName)
-        values, params = db.getRows('quoteType', columns=['keySymbol'])
+        values, params = self.db.getRows('quoteType', columns=['keySymbol'])
         return [x[0] for x in values]
 
     def getData(self, symbols, types):
@@ -212,11 +210,10 @@ class QuoteSummary(Base):
         for type in types:
             modules = modules.union(set(self.__modulesForTypes[type]))
 
-        db = database.Database(self.dbName)
         for symbol in symbols:
             data[symbol] = {}
             for module in modules:
-                values, params = db.getRows(module, whereColumns=['keySymbol'], areValues=[symbol])
+                values, params = self.db.getRows(module, whereColumns=['keySymbol'], areValues=[symbol])
                 if len(values) == 0: continue
                 data[symbol][module] = {}
                 for value in values:

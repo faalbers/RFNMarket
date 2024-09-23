@@ -8,13 +8,13 @@ class Database():
     def __init__(self, name):
         self.name = name
         self.connection = sqlite3.connect('database/%s.db' % name)
-        # print('Database: open  : %s' % self.name)
+        print('Database: open  : %s' % self.name)
 
     def __del__(self):
         self.connection.commit()
         # print('Database: commit: %s' % self.name)
         self.connection.close()
-        # print('Database: close : %s' % self.name)
+        print('Database: close : %s' % self.name)
     
     def close(self):
         self.connection.close()

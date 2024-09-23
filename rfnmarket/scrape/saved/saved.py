@@ -10,15 +10,14 @@ class Saved():
     dbName = 'saved'
 
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
-
+        self.db = database.Database(self.dbName)
         self.dataPath = 'database/'
         self.readCSV()
         self.readQuicken()
 
     def readQuicken(self):
         # get status first
-        db = database.Database(self.dbName)
-        fileDates , dataNames = db.getRows('status_db', whereColumns=['rowid'], areValues=[1])
+        fileDates , dataNames = self.db.getRows('status_db', whereColumns=['rowid'], areValues=[1])
         statusDates = {}
         index = 0
         for dataName in dataNames:
@@ -39,10 +38,10 @@ class Saved():
             # only read data from newer files
             if tableName in statusDates and fileDate <= statusDates[tableName]: continue
 
-            log.info('Update saved: %s' % dataName)
+            log.info('Creating Quicken data: %s' % dataName)
             
-            db.dropTable(tableName)
-            db.createTable(tableName, paramsCreate)
+            self.db.dropTable(tableName)
+            self.db.createTable(tableName, paramsCreate)
             timestamp = None
             securities = {}
             lineBefore = ''
@@ -50,11 +49,11 @@ class Saved():
                 line = f.readline()
                 while line:
                     if line == '!Type:Security\n':
-                        securityName = f.readline().strip('\n').lstrip('N')
+                        securityName = f.readline().strip('\n')[1:]
                         if securityName != 'Cash' and securityName != 'CD':
                             securities[securityName] = {}
-                            securities[securityName]['symbol'] = f.readline().strip('\n').lstrip('S')
-                            securities[securityName]['type'] = f.readline().strip('\n').lstrip('T')
+                            securities[securityName]['symbol'] = f.readline().strip('\n')[1:]
+                            securities[securityName]['type'] = f.readline().strip('\n')[1:]
                     lineBefore = line
                     line = f.readline()
             lineBefore = ''
@@ -62,24 +61,24 @@ class Saved():
                 line = f.readline()
                 while line:
                     if line.startswith('D') and '/' in line and line[1].isnumeric():
-                        date = line.strip('\n').lstrip('D')
+                        date = line.strip('\n')[1:]
                         date = date.split('/')
                         month = int(date[0].strip())
                         date = date[1].split("'")
                         day = int(date[0].strip())
                         year = int(date[1].strip())+2000
                         timestamp = datetime(day=day, month=month, year=year).timestamp()
-                    elif line.strip('\n').lstrip('Y') in securities:
+                    elif line.startswith('Y') and line.strip('\n')[1:] in securities:
                         values = {}
                         for param in params: values[param] = None
                         # log.info('')
                         # log.info(datetime.fromtimestamp(timestamp))
                         values['timestamp'] = int(timestamp)
-                        securityName = line.strip('\n').lstrip('Y')
+                        securityName = line.strip('\n')[1:]
                         values['security'] = securityName
                         values['symbol'] = securities[securityName]['symbol']
                         values['type'] = securities[securityName]['type']
-                        transaction = lineBefore.strip('\n').lstrip('N')
+                        transaction = lineBefore.strip('\n')[1:]
                         values['transaction'] = transaction
                         # log.info(securityName)
                         # log.info(typeName)
@@ -116,26 +115,25 @@ class Saved():
                     line = f.readline()
             # for rowValues in writeValues:
             #     log.info(rowValues)
-            db.insertOrIgnore(tableName, params, writeValues)
+            self.db.insertOrIgnore(tableName, params, writeValues)
             
             # update status
-            db.createTable('status_db', ["'%s' TIMESTAMP" % tableName])
-            db.addColumn('status_db', tableName, 'TIMESTAMP')
-            db.insertOrIgnore('status_db', ['rowid'], (1,))
-            db.update( 'status_db', 'rowid', 1, [tableName], (fileDate,) )
+            self.db.createTable('status_db', ["'%s' TIMESTAMP" % tableName])
+            self.db.addColumn('status_db', tableName, 'TIMESTAMP')
+            self.db.insertOrIgnore('status_db', ['rowid'], (1,))
+            self.db.update( 'status_db', 'rowid', 1, [tableName], (fileDate,) )
 
     def readCSV(self):
         cvsFiles = glob.glob(self.dataPath+'*.csv')
-        db = database.Database(self.dbName)
         # get status first
-        fileDates , dataNames = db.getRows('status_db', whereColumns=['rowid'], areValues=[1])
+        fileDates , dataNames = self.db.getRows('status_db', whereColumns=['rowid'], areValues=[1])
         statusDates = {}
         index = 0
         for dataName in dataNames:
             statusDates[dataName] = fileDates[0][index]
             index += 1
         # now lets retrieve the data if needed
-        connection = db.getConnection()
+        connection = self.db.getConnection()
         filesRead = 0
         for cvsFile in cvsFiles:
             fileDate = int(os.path.getmtime(cvsFile))
@@ -152,10 +150,10 @@ class Saved():
             filesRead += 1
 
             # update status
-            db.createTable('status_db', ["'%s' TIMESTAMP" % dataName])
-            db.addColumn('status_db', dataName, 'TIMESTAMP')
-            db.insertOrIgnore('status_db', ['rowid'], (1,))
-            db.update( 'status_db', 'rowid', 1, [dataName], (fileDate,) )
+            self.db.createTable('status_db', ["'%s' TIMESTAMP" % dataName])
+            self.db.addColumn('status_db', dataName, 'TIMESTAMP')
+            self.db.insertOrIgnore('status_db', ['rowid'], (1,))
+            self.db.update( 'status_db', 'rowid', 1, [dataName], (fileDate,) )
 
         if filesRead > 0:
             log.info('CSV files read and updated: %s' % filesRead)

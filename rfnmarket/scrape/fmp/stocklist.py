@@ -10,12 +10,13 @@ class StockList(Base):
 
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()
+        self.db = database.Database(self.dbName)
+        self.dbSaved = database.Database('saved')
 
         # check if we need to update stocklist, maybe once every half a year
         updateTime = int(datetime.now().timestamp() - (60*60*24*31*6))
         # updateTime = int(datetime.now().timestamp())
-        db = database.Database(self.dbName)
-        lastUpdateTime = db.getMaxColumnValue('status_db', 'timestamp')
+        lastUpdateTime = self.db.getMaxColumnValue('status_db', 'timestamp')
         
         if lastUpdateTime != None and lastUpdateTime > updateTime: return
         
@@ -32,7 +33,7 @@ class StockList(Base):
         if response.headers.get('content-type').startswith('application/json'):
             responseData = response.json()
             timestamp = int(datetime.now().timestamp())
-            db.createTable('stocklist', ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP", "'name' TEXT", "'price' FLOAT",
+            self.db.createTable('stocklist', ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP", "'name' TEXT", "'price' FLOAT",
                 "'exchange' TEXT", "'exchangeShortName' TEXT", "'type' TEXT"])
             for entry in responseData:
                 params = ['timestamp']
@@ -41,26 +42,24 @@ class StockList(Base):
                 for param, value in entry.items():
                     if param == 'symbol':
                         symbol = value
-                        db.insertOrIgnore('stocklist', ['keySymbol'], (symbol,))
+                        self.db.insertOrIgnore('stocklist', ['keySymbol'], (symbol,))
                         continue
                     params.append(param)
                     values.append(value)
-                db.update( 'stocklist', 'keySymbol', symbol, params, tuple(values) )
-            db.createTable('status_db', ["'timestamp' TIMESTAMP"])
-            db.insertOrIgnore('status_db', ['rowid', 'timestamp'], (1, int(datetime.now().timestamp()),))
-            db.update( 'status_db', 'rowid', 1, ['timestamp'], (int(datetime.now().timestamp()),) )
+                self.db.update( 'stocklist', 'keySymbol', symbol, params, tuple(values) )
+            self.db.createTable('status_db', ["'timestamp' TIMESTAMP"])
+            self.db.insertOrIgnore('status_db', ['rowid', 'timestamp'], (1, int(datetime.now().timestamp()),))
+            self.db.update( 'status_db', 'rowid', 1, ['timestamp'], (int(datetime.now().timestamp()),) )
 
     def getStocks(self, type=None, exchangeCountry=None):
-        db = database.Database(self.dbName)
         if type == None:
-            slvalues, slparams = db.getRows('stocklist', columns=['keySymbol', 'exchangeShortName'])
+            slvalues, slparams = self.db.getRows('stocklist', columns=['keySymbol', 'exchangeShortName'])
         else:
-            slvalues, slparams = db.getRows('stocklist', columns=['keySymbol', 'exchangeShortName'], whereColumns=['type'], areValues=[type])
+            slvalues, slparams = self.db.getRows('stocklist', columns=['keySymbol', 'exchangeShortName'], whereColumns=['type'], areValues=[type])
         
         symbols = []
         if exchangeCountry != None:
-            dbSaved = database.Database('saved')
-            acvalues, acparams = dbSaved.getRows('ISO10383_MIC', columns=['ACRONYM', 'ISO COUNTRY CODE (ISO 3166)'])
+            acvalues, acparams = self.dbSaved.getRows('ISO10383_MIC', columns=['ACRONYM', 'ISO COUNTRY CODE (ISO 3166)'])
             acronyms = {}
             for value in acvalues:
                 acronyms[value[0]] = value[1]
