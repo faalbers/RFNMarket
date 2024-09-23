@@ -6,7 +6,7 @@ from pprint import pp
 class Chart(Base):
     dbName = 'yahoo_chart'
 
-    def setSymbolPeriod1(self):
+    def update(self, symbols, forceUpdate=False):
         # set all symbols with lowest period1 of 10 years
 
         # check last timestamp of symbols in quote database
@@ -17,58 +17,45 @@ class Chart(Base):
             foundSymbolTimestamps[value[0]] = value[1]
 
         # set period1 for all symbol requests
-        self.symbolPeriod1 = {}
+        symbolPeriod1 = {}
         now = datetime.now()
-        self.lowestTimestamp = int(now.timestamp())
         # update period is 1 day
         updateTimestamp = int(now.timestamp()) - int(60*60*24)
-        for symbol in self.symbols:
+        for symbol in symbols:
             if symbol in foundSymbolTimestamps:
                 # if needed update add symbol with last timestamp
                 if updateTimestamp >= foundSymbolTimestamps[symbol]:
-                    self.symbolPeriod1[symbol] = foundSymbolTimestamps[symbol]
-                if foundSymbolTimestamps[symbol] < self.lowestTimestamp:
-                    self.lowestTimestamp = foundSymbolTimestamps[symbol]
+                    symbolPeriod1[symbol] = foundSymbolTimestamps[symbol]
             else:
                 # add symbol with period1 of 10 years
-                self.symbolPeriod1[symbol] = int(now.timestamp()) - int(60*60*24*365.2422*10)
+                symbolPeriod1[symbol] = int(now.timestamp()) - int(60*60*24*365.2422*10)
 
-        for symbol in set(self.symbols).intersection(foundSymbolTimestamps.keys()):
+        for symbol in set(symbols).intersection(foundSymbolTimestamps.keys()):
             if updateTimestamp >= foundSymbolTimestamps[symbol]:
-                self.symbolPeriod1[symbol] = foundSymbolTimestamps[symbol]
-            if foundSymbolTimestamps[symbol] < self.lowestTimestamp: self.lowestTimestamp = foundSymbolTimestamps[symbol]
-
-    def updateTables(self, tables):
-        if tables == None: return
+                symbolPeriod1[symbol] = foundSymbolTimestamps[symbol]
         
-        print('tables: %s' % tables)
+        return symbolPeriod1
 
     def __init__(self, symbols=None, types=None, tables=None, forceUpdate=False):
         super().__init__()
 
-        self.updateTables(tables)
-        
-        print('Running Chart update but not executing')
-        return
-        # if we are not updating just use class for data retrieval
-        if symbols == None or types == None: return
+        symbolPeriod1 = self.update(symbols, forceUpdate=False)
 
-        # make shore we don't mess up the referenced symbols variable
-        self.symbols = list(symbols)
-        self.setSymbolPeriod1()
-
-        # dont'run if no symbols
-        if len(self.symbolPeriod1) == 0: return
+        # guess there is nothing to update
+        if len(symbolPeriod1) == 0: return
 
         log.info('Chart update')
-        log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(self.lowestTimestamp)))
-        log.info('symbols processing  : %s' % len(self.symbolPeriod1))
+        log.info('symbols processing  : %s' % len(symbolPeriod1))
 
-        return
-    
         requestArgsList = []
+
+        # these symbols are needed for indexing while retrieving
         self.symbols = []
-        for symbol, period1 in self.symbolPeriod1.items():
+        requestArgsList = []
+        lowestTimestamp = int(datetime.now().timestamp())
+        for symbol, period1 in symbolPeriod1.items():
+            if period1 < lowestTimestamp:
+                lowestTimestamp = period1
             period2 = int(datetime.now().timestamp())
             # print('symbol : %s' % symbol)
             # print('period1: %s' % period1)
@@ -85,6 +72,8 @@ class Chart(Base):
             }                      
             requestArgsList.append(requestArgs)
             self.symbols.append(symbol)
+        log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(lowestTimestamp)))
+
         self.start = datetime.now()
         self.multiRequest(requestArgsList, blockSize=50)
     

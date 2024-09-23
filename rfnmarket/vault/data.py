@@ -127,18 +127,6 @@ class Data():
             if 'postProcs' in catData:
                 for proc in catData['postProcs']:
                     dbdata = proc(self, dbdata)
-
-            # get list of DataFrames
-            # dfs = []
-            # def recursedict(dictData):
-            #     if isinstance(dictData, dict):
-            #         for key, nextData in dictData.items():
-            #             recursedict(nextData)
-            #     else:
-            #         print(type(dictData))
-            #         dfs.append(dictData)
-            # recursedict(dbdata)
-            # data[catalog] = dfs
             
             data[catalog] = dbdata
         return data

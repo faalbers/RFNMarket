@@ -83,7 +83,7 @@ class QuoteSummary(Base):
         return symbolModules
 
     def update(self, symbols, tables, forceUpdate):
-        if len(symbols) == 0 or len(symbols) == 0: return {}, set()
+        if len(symbols) == 0 or len(tables) == 0: return {}, set()
 
         symbolModules = self.getSymbolModules(symbols, tables, forceUpdate)
 
@@ -92,6 +92,7 @@ class QuoteSummary(Base):
     def __init__(self, symbols=[], types=None, tables=[], forceUpdate=False):
         super().__init__()
         # update if needed 
+        # modules not used , might as well remove it, it's always empty
         symbolModules, modules = self.update(symbols, tables, forceUpdate=forceUpdate)
 
         # dont'run  update if no symbols
