@@ -17,10 +17,11 @@ class StockList(Base):
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()
         self.db = database.Database(self.dbName)
-        self.dbSaved = database.Database('saved')
 
         # check if we need to update stocklist, maybe once every half a year
-        updateTime = int(datetime.now().timestamp() - (60*60*24*31*6))
+        mult = 1
+        if forceUpdate: mult = 0
+        updateTime = int(datetime.now().timestamp() - (60*60*24*31*6*mult))
         # updateTime = int(datetime.now().timestamp())
         lastUpdateTime = self.db.getMaxColumnValue('status_db', 'timestamp')
         
@@ -56,24 +57,4 @@ class StockList(Base):
             self.db.createTable('status_db', ["'timestamp' TIMESTAMP"])
             self.db.insertOrIgnore('status_db', ['rowid', 'timestamp'], (1, int(datetime.now().timestamp()),))
             self.db.update( 'status_db', 'rowid', 1, ['timestamp'], (int(datetime.now().timestamp()),) )
-
-    def getStocks(self, type=None, exchangeCountry=None):
-        if type == None:
-            slvalues, slparams = self.db.getRows('stocklist', columns=['keySymbol', 'exchangeShortName'])
-        else:
-            slvalues, slparams = self.db.getRows('stocklist', columns=['keySymbol', 'exchangeShortName'], whereColumns=['type'], areValues=[type])
-        
-        symbols = []
-        if exchangeCountry != None:
-            acvalues, acparams = self.dbSaved.getRows('ISO10383_MIC', columns=['ACRONYM', 'ISO COUNTRY CODE (ISO 3166)'])
-            acronyms = {}
-            for value in acvalues:
-                acronyms[value[0]] = value[1]
-            for value in slvalues:
-                if value[1] in acronyms and acronyms[value[1]] == exchangeCountry:
-                    symbols.append(value[0])
-        else:
-            symbols = [x[0] for x in slvalues]
-       
-        return symbols
     

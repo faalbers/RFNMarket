@@ -17,9 +17,11 @@ class Tickers(Base):
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()
         self.db = database.Database(self.dbName)
-        self.dbSaved = database.Database('saved')
+
         # check if we need to update stocklist, maybe once every half a year
-        updateTime = int(datetime.now().timestamp() - (60*60*24*31*6))
+        mult = 1
+        if forceUpdate: mult = 0
+        updateTime = int(datetime.now().timestamp() - (60*60*24*31*6*mult))
         lastUpdateTime = self.db.getMaxColumnValue('status_db', 'timestamp')
 
         if lastUpdateTime != None and lastUpdateTime > updateTime: return
@@ -27,8 +29,6 @@ class Tickers(Base):
         log.info('Polygon Tickers updating')
         log.info('Last time updated: %s' % datetime.fromtimestamp(lastUpdateTime))
 
-        return
-    
         nextRequestArgs = {
             'url': 'https://api.polygon.io/v3/reference/tickers/types',
         }
@@ -54,7 +54,13 @@ class Tickers(Base):
             response = self.requestCallLimited(nextRequestArgs)
             if response.headers.get('content-type').startswith('application/json'):
                 responseData = response.json()
-                tickersList = responseData['results']
+                if 'results' in responseData:
+                    tickersList = responseData['results']
+                else:
+                    # happened once , dunno what to do here yet
+                    print('response data has nor results key')
+                    pp(responseData)
+                    exit(0)
                 self.db.createTable('tickers', ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP"])
                 for ticker in tickersList:
                     symbol = ticker.pop('ticker').upper()
@@ -108,56 +114,3 @@ class Tickers(Base):
         self.db.insertOrIgnore('status_db', ['rowid', 'timestamp'], (1, int(datetime.now().timestamp()),))
         self.db.update( 'status_db', 'rowid', 1, ['timestamp'], (int(datetime.now().timestamp()),) )
 
-    def decipherSymbolName(self, symbol):
-        if ':' in symbol:
-            items = symbol.split(':')
-            if items[0] == 'I':
-                return ('^'+items[1])
-            if items[0] == 'C':
-                return (items[1]+'=X')
-            if items[0] == 'X':
-                return items[1]
-            return None
-        return symbol
-
-    def getTickers(self, market=None, exchangeCountry=None):
-        if market == None:
-            tvalues, tparams = self.db.getRows('tickers', columns=['keySymbol', 'primary_exchange'])
-        else:
-            tvalues, tparams = self.db.getRows('tickers', columns=['keySymbol', 'primary_exchange'], whereColumns=['market'], areValues=[market])
-        
-        keySymbols = []
-        if exchangeCountry != None:
-            mvalues, mparams = self.dbSaved.getRows('ISO10383_MIC', columns=['MIC', 'ISO COUNTRY CODE (ISO 3166)'])
-            mics = {}
-            for value in mvalues:
-                mics[value[0]] = value[1]
-            for value in tvalues:
-                if value[1] in mics and mics[value[1]] == exchangeCountry:
-                    keySymbols.append(value[0])
-        else:
-            keySymbols = [x[0] for x in tvalues]
-
-        symbols = []
-        for symbol in keySymbols:
-            symbol = self.decipherSymbolName(symbol)
-            if symbol != None:
-                symbols.append(symbol)
-        
-        return symbols
-    
-    def getUSExchangeStockSymbols(self):
-        values, params = self.dbSaved.getRows('ISO10383_MIC', columns=['MIC', 'ISO COUNTRY CODE (ISO 3166)'])
-        mics = {}
-        for value in values:
-            mics[value[0]] = value[1]
-        values, params = self.db.getRows('tickers', columns=['keySymbol','primary_exchange'])
-        symbols = []
-        for value in values:
-            if value[1] in mics and mics[value[1]] == 'US':
-                if ':' in value[0]:
-                    print(value[0])
-                symbol = self.decipherSymbolName(value[0])
-                if symbol != None:
-                    symbols.append(value[0])
-        return symbols
