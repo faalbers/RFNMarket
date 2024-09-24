@@ -7,6 +7,12 @@ import json
 # https://polygon.io/
 class Tickers(Base):
     dbName = 'polygon_tickers'
+    
+    @staticmethod
+    def getTableNames(tableName):
+        if tableName == 'all':
+            return ['tickers', 'types']
+        return [tableName]
 
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()

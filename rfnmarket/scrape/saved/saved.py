@@ -8,6 +8,12 @@ from pprint import pp
 
 class Saved():
     dbName = 'saved'
+    @staticmethod
+
+    def getTableNames(tableName):
+        # if tableName == 'all':
+        #     return list(const.QUOTESUMMARY_MODULES.keys())
+        return [tableName]
 
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         self.db = database.Database(self.dbName)

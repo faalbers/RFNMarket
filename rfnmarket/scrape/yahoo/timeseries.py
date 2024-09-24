@@ -208,7 +208,11 @@ class TimeSeries(Base):
                     for timeseriesData in symbolData:
                         self. updateTimeseriesDB(symbol, timeseriesData, db)
                     self.updateStatus(symbol, db)
-
+    
+    def dbCommit(self):
+        # call from base to commit
+        self.db.commit()
+    
     def getData(self, symbols, types):
         data = {}
         print(types)

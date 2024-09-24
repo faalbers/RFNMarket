@@ -56,84 +56,88 @@ class Data():
                     # access scrape database
                     db = self.getScrapeDB(scrapeClass)
                     for tableName, tableData in scrapeData.items():
-                        # access database table and create table DataFrame
+                        # if tableName is * we get all available table names from that scrape class
+                        scrapeTableNames = scrapeClass.getTableNames(tableName)
+                        for tableName in scrapeTableNames:
+                            if not db.tableExists(tableName): continue
+                            # access database table and create table DataFrame
+                            # create columnsSet
+                            # make_index, check_symbols, make upper
+                            columns = {}
+                            for columnSet in tableData['columnSets']:
+                                searchColumn = columnSet[0]
+                                makeColumn = columnSet[1]
+                                if searchColumn == '*':
+                                    for columnName in db.getColumnNames(tableName):
+                                        if makeColumn != '':
+                                            newColumnName = makeColumn + columnName.capitalize()
+                                        else:
+                                            newColumnName = columnName
+                                        if not columnName in columns:
+                                            columns[columnName] = []
+                                        columns[columnName].append([newColumnName] + columnSet[2:])
+                                else:
+                                    if not searchColumn in columns:
+                                        columns[searchColumn] = []
+                                    columns[searchColumn].append(columnSet[1:])
+                            dfSearch = db.getTableDataFrame(tableName, columns=list(columns.keys()))
+                            
+                            # build table DataFrame
+                            dfTables[tableName] = pd.DataFrame(index=dfSearch.index)
+                            indexColumns = set()
+                            symbolsColumns = set()
+                            for searchColumn, makeColumnSets in columns.items():
+                                for makeColumnSet in makeColumnSets:
+                                    makeColumn = makeColumnSet[0]
+                                    makeUpper = makeColumnSet[3]
+                                    makeDatetime = makeColumnSet[4]
+                                    dfTables[tableName][makeColumn] = dfSearch[searchColumn]
+                                    if makeUpper:
+                                        dfTables[tableName][makeColumn] = dfTables[tableName][makeColumn].str.upper()
+                                    if makeDatetime:
+                                        dfTables[tableName][makeColumn] = pd.to_datetime(dfTables[tableName][makeColumn], unit='s').dt.tz_localize('US/Pacific')
+                                    makeIndex = makeColumnSet[1]
+                                    checkSymbols = makeColumnSet[2]
+                                    if makeIndex: indexColumns.add(makeColumn)
+                                    if checkSymbols: symbolsColumns.add(makeColumn)
 
-                        # create columnsSet
-                        # make_index, check_symbols, make upper
-                        columns = {}
-                        for columnSet in tableData['columnSets']:
-                            searchColumn = columnSet[0]
-                            makeColumn = columnSet[1]
-                            if searchColumn == '*':
-                                for columnName in db.getColumnNames(tableName):
-                                    if makeColumn != '':
-                                        newColumnName = makeColumn + columnName.capitalize()
-                                    else:
-                                        newColumnName = makeColumn
-                                    if not columnName in columns:
-                                        columns[columnName] = []
-                                    columns[columnName].append([newColumnName] + columnSet[2:])
-                            else:
-                                if not searchColumn in columns:
-                                    columns[searchColumn] = []
-                                columns[searchColumn].append(columnSet[1:])
-                        dfSearch = db.getTableDataFrame(tableName, columns=list(columns.keys()))
-                        
-                        # build table DataFrame
-                        dfTables[tableName] = pd.DataFrame(index=dfSearch.index)
-                        indexColumns = set()
-                        symbolsColumns = set()
-                        for searchColumn, makeColumnSets in columns.items():
-                            for makeColumnSet in makeColumnSets:
-                                makeColumn = makeColumnSet[0]
-                                makeUpper = makeColumnSet[3]
-                                makeDatetime = makeColumnSet[4]
-                                dfTables[tableName][makeColumn] = dfSearch[searchColumn]
-                                if makeUpper:
-                                    dfTables[tableName][makeColumn] = dfTables[tableName][makeColumn].str.upper()
-                                if makeDatetime:
-                                    dfTables[tableName][makeColumn] = pd.to_datetime(dfTables[tableName][makeColumn], unit='s').dt.tz_localize('US/Pacific')
-                                makeIndex = makeColumnSet[1]
-                                checkSymbols = makeColumnSet[2]
-                                if makeIndex: indexColumns.add(makeColumn)
-                                if checkSymbols: symbolsColumns.add(makeColumn)
+                            
+                            if len(symbolsColumns) == 1:
+                                symbolsColumn = symbolsColumns.pop()
+                                dfTables[tableName] = dfTables[tableName][dfTables[tableName][symbolsColumn].isin(symbols)]
 
-                        
-                        if len(symbolsColumns) == 1:
-                            symbolsColumn = symbolsColumns.pop()
-                            dfTables[tableName] = dfTables[tableName][dfTables[tableName][symbolsColumn].isin(symbols)]
-
-                        if len(indexColumns) == 1:
-                            indexColumn = indexColumns.pop()
-                            dfTables[tableName].set_index(indexColumn, inplace=True,verify_integrity = True)
-                    # delete for if it needs to be reopened
-                    del db
+                            if len(indexColumns) == 1:
+                                indexColumn = indexColumns.pop()
+                                dfTables[tableName].set_index(indexColumn, inplace=True,verify_integrity = True)
                 dbdata[dfName] = {}
                 
-                #handle post functions
-                if 'postFunctions' in dfData:
-                    if 'merge' in dfData['postFunctions']:
-                        tableNames = list(dfTables)
-                        dfMerged = pd.DataFrame()
-                        for tableName in tableNames:
-                            dfTable = dfTables.pop(tableName)
-                            dfMerged = pd.merge(dfMerged, dfTable, left_index=True, right_index=True, how='outer')
-                        dbdata[dfName]['merged'] = dfMerged
-                    else:
-                        dbdata[dfName] = dfTables
+                # run tables post procs
+                if 'postProcs' in dfData:
+                    for proc in dfData['postProcs']:
+                        dbdata[dfName] = proc(self, dfTables)
+                    # if 'merge' in dfData['postFunctions']:
+                    #     tableNames = list(dfTables)
+                    #     dfMerged = pd.DataFrame()
+                    #     for tableName in tableNames:
+                    #         dfTable = dfTables.pop(tableName)
+                    #         dfMerged = pd.merge(dfMerged, dfTable, left_index=True, right_index=True, how='outer')
+                    #     dbdata[dfName]['merged'] = dfMerged
+                    # else:
+                    #     dbdata[dfName] = dfTables
                     
-                    if 'dropDuplicates' in dfData['postFunctions']:
-                        for tableName , df in dbdata[dfName].items():
-                            df.drop_duplicates(inplace=True)
+                    # if 'dropDuplicates' in dfData['postFunctions']:
+                    #     for tableName , df in dbdata[dfName].items():
+                    #         df.drop_duplicates(inplace=True)
                 else:
                     dbdata[dfName] = dfTables
             
-            # run post procs
+            # run dataframes post procs
             if 'postProcs' in catData:
                 for proc in catData['postProcs']:
-                    dbdata = proc(self, dbdata)
+                    data[catalog] = proc(self, dbdata)
+            else:
+                data[catalog] = dbdata
             
-            data[catalog] = dbdata
         return data
 
     def getCatalog(self):
@@ -142,11 +146,6 @@ class Data():
             catalog[cat] = data['info']
         return catalog
     
-    def getSymbols(self):
-        db = self.getScrapeDB(scrape.yahoo.QuoteSummary)
-        values, params = db.getRows('status_db', ['keySymbol'])
-        return [x[0] for x in values] 
-
     def getQuickenInvestments(self, withShares=True, update=False):
         investments = {}
         db = self.getScrapeDB(scrape.saved.Saved)
@@ -213,27 +212,38 @@ class Data():
         return investments
 
     # post procs
-    
+    @staticmethod
+    def __findUSExchangeSymbols(self, data):
+        # get all mics and acronyms that have US country code
+        mics = data['mic']['ISO10383_MIC']
+        usacronyms = list(set(mics.loc[mics['cc'] == 'US']['acronym'].dropna()))
+        usmics = list(set(mics.loc[mics['cc'] == 'US']['mic'].dropna()))
+        
+        # add country united States to a new column if:
+        # mic is in usmics
+        # acronym is in usacronyms
+        profile = data['profile']['merged']
+        profile.loc[ profile['mic'].isin(usmics) , 'country' ] = 'United States'
+        profile.loc[ profile['acronym'].isin(usacronyms) , 'country' ] = 'United States'
+        
+        # select all symbols that have country set and get the symbols index
+        return list(profile['country'].dropna().index)
+
     @staticmethod
     def __addExchangeData(self, data):
-        mics = data['countries']['ISO10383_MIC']
-        mics.loc['*'] = None
-        countries = data['countries']['ISO3166-1']
-        countries.loc['*'] = None
+        # get all mics and acronyms that have US country code
+        mics = data.pop('mic')['ISO10383_MIC']
+        usexchange = list(set(mics.loc[mics['cc'] == 'US']['exchange'].dropna()))
+        usmics = list(set(mics.loc[mics['cc'] == 'US']['mic'].dropna()))
+
+        # add country united States to a new column if:
+        # mic is in usmics
+        # exchange is in usexchange
         profile = data['profile']['merged']
+        profile.loc[ profile['mic'].isin(usmics) , 'exchangeCountry' ] = 'United States'
+        profile.loc[ profile['exchange'].isin(usexchange) , 'exchangeCountry' ] = 'United States'
 
-        # find countrie names from mics
-        pmics = profile.loc[:,'mic'].copy()
-        pmics.fillna('*', inplace=True)
-        ccs = mics.loc[pmics,'cc']
-        ccs.fillna('*', inplace=True)
-        cnames = countries.loc[ccs,'country']
-
-        # add Country names after mic column
-        profile.insert(profile.columns.get_loc('mic')+1, 'micCountry', list(cnames))
-
-        # remove unneeded dataframes
-        data.pop('countries')
+        return data
 
     @staticmethod
     def __getChartData(self, data):
@@ -303,7 +313,20 @@ class Data():
         mychartData = self.getData(['mychart'], catalogDB=catalogDB)
 
         return mychartData
-
+    
+    @staticmethod
+    def __mergeDataFrames(self, data):
+        tableNames = list(data.keys())
+        dfMerged = pd.DataFrame()
+        for tableName in tableNames:
+            dfTable = data[tableName]
+            dfMerged = pd.merge(dfMerged, dfTable, left_index=True, right_index=True, how='outer')
+        return {'merged': dfMerged}
+        
+        # if 'dropDuplicates' in dfData['postFunctions']:
+        #     for tableName , df in dbdata[dfName].items():
+        #         df.drop_duplicates(inplace=True)
+    
     __catalog = {
         # columnSets: example: ['keySymbol', 'symbol', True, True, True]
         # [column_search, column_name, make_index, check_symbols, make_upper, make_datetime]
@@ -315,11 +338,52 @@ class Data():
         # check_symbols: cross check with symbols
         # make_upper: make this data upper case
         # make_datetime: turn collumn timestamps into Datetime
+        'ussymbols': {
+            'info': 'ticker traded in us markets',
+            'postProcs': [__findUSExchangeSymbols],
+            'dataFrames': {
+                'profile': {
+                    'postProcs': [__mergeDataFrames],
+                    'scrapes': {
+                        scrape.fmp.StockList: {
+                            'stocklist': {
+                                'columnSets': [
+                                    ['keySymbol', 'symbol', True, False, True, False],
+                                    ['exchangeShortName', 'acronym', False, False, False, False],
+                                    # ['type', 'type', False, False, True, False],
+                                ],
+                            },
+                        },
+                        scrape.polygon.Tickers: {
+                            'tickers': {
+                                'columnSets': [
+                                    ['keySymbol', 'symbol', True, False, True, False],
+                                    ['primary_exchange', 'mic', False, False, False, False],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'mic': {
+                    'scrapes': {
+                        scrape.saved.Saved: {
+                            'ISO10383_MIC': {
+                                'columnSets': [
+                                    ['MIC', 'mic', False, False, False, False],
+                                    ['ACRONYM', 'acronym', False, False, False, False],
+                                    ['ISO COUNTRY CODE (ISO 3166)', 'cc', False, False, False, False],
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
         'statistics': {
             'info': 'ticker company profile information',
             'dataFrames': {
                 'statistics': {
-                    'postFunctions': ['merge'],
+                    'postProcs': [__mergeDataFrames],
                     'scrapes': {
                         scrape.yahoo.QuoteSummary: {    # scrape class to retrieve data from
                             'defaultKeyStatistics': {   # table name to be searched
@@ -379,7 +443,7 @@ class Data():
             'postProcs': [__addExchangeData],
             'dataFrames': {
                 'profile': {
-                    'postFunctions': ['merge'],
+                    'postProcs': [__mergeDataFrames],
                     'scrapes': {
                         scrape.yahoo.QuoteSummary: {
                             'quoteType': {
@@ -428,19 +492,14 @@ class Data():
                         },
                     },
                 },
-                'countries': {
+                'mic': {
                     'scrapes': {
                         scrape.saved.Saved: {
                             'ISO10383_MIC': {
                                 'columnSets': [
-                                    ['MIC', 'mic', True, False, False, False],
+                                    ['MIC', 'mic', False, False, False, False],
+                                    ['ACRONYM', 'exchange', False, False, False, False],
                                     ['ISO COUNTRY CODE (ISO 3166)', 'cc', False, False, False, False],
-                                ],
-                            },
-                            'ISO3166-1': {
-                                'columnSets': [
-                                    ['Name', 'country', False, False, False, False],
-                                    ['Code', 'cc', True, False, False, False],
                                 ],
                             },
                         },
@@ -473,7 +532,7 @@ class Data():
             'postProcs': [__getChartData],
             'dataFrames': {
                 'chart': {
-                    'postFunctions': ['merge'],
+                    'postProcs': [__mergeDataFrames],
                     'scrapes': {
                         scrape.yahoo.Chart: {
                             'indicators': {
@@ -498,6 +557,33 @@ class Data():
                                 'columnSets': [
                                     ['keySymbol', 'symbol', True, True, True, False],
                                     ['tableName', 'capitalGains', False, False, False, False],
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        'all': {
+            'info': 'chart data',
+            'dataFrames': {
+                'QuoteSummary': {
+                    'scrapes': {
+                        scrape.yahoo.QuoteSummary: {
+                            'all': {
+                                'columnSets': [
+                                    ['*', '', False, False, False, False],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'Chart': {
+                    'scrapes': {
+                        scrape.yahoo.Chart: {
+                            'all': {
+                                'columnSets': [
+                                    ['*', '', False, False, False, False],
                                 ],
                             },
                         },

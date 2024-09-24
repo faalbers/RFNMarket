@@ -11,6 +11,12 @@ class QuoteSummary(Base):
     dbName = 'yahoo_quotesummary'
 
     @staticmethod
+    def getTableNames(tableName):
+        if tableName == 'all':
+            return list(const.QUOTESUMMARY_MODULES.keys())
+        return [tableName]
+
+    @staticmethod
     def getModuleUpdatePeriods(forceUpdate):
         mult = 1
         if forceUpdate:
@@ -29,6 +35,8 @@ class QuoteSummary(Base):
     
     def getSymbolModules(self, symbols, tables, forceUpdate):
         modules = set(tables)
+        if '*' in modules:
+            modules = set(const.QUOTESUMMARY_MODULES.keys())
         moduleUpdatePeriods = self.getModuleUpdatePeriods(forceUpdate)
         symbolModules = {}
 
@@ -43,7 +51,7 @@ class QuoteSummary(Base):
         for value in values:
             foundSymbolIndices[value[0]] = index
             index += 1
-        
+
         # get mdule indices of modules that were last collected
         foundModuleIndices = {}
         index = 0
@@ -78,22 +86,16 @@ class QuoteSummary(Base):
                 # now set the modules that need to be updated for that symbol if there are any
                 if len(foundModules) > 0:
                     symbolModules[symbol] = foundModules
-
+            else:
+                symbolModules[symbol] = set().union(modules)
         return symbolModules
-
-    def update(self, symbols, tables, forceUpdate):
-        if len(symbols) == 0 or len(tables) == 0: return {}, set()
-
-        symbolModules = self.getSymbolModules(symbols, tables, forceUpdate)
-
-        return symbolModules, set()
 
     def __init__(self, symbols=[], types=None, tables=[], forceUpdate=False):
         super().__init__()
         self.db = database.Database(self.dbName)
         # update if needed 
         # modules not used , might as well remove it, it's always empty
-        symbolModules, modules = self.update(symbols, tables, forceUpdate=forceUpdate)
+        symbolModules = self.getSymbolModules(symbols, tables, forceUpdate=forceUpdate)
 
         # dont'run  update if no symbols
         if len(symbolModules) == 0: return
@@ -174,6 +176,7 @@ class QuoteSummary(Base):
             params.append(module)
             values.append(int(datetime.now().timestamp()))
         self.db.update( 'status_db', 'keySymbol', symbol, params, tuple(values) )
+        self.db.commit()
 
     def pushAPIData(self, symbolIndex, response):
         symbol = self.symbols[symbolIndex]
@@ -197,28 +200,32 @@ class QuoteSummary(Base):
                     symbolData = symbolData['error']
         self.updateStatus(symbol)
 
-    def getQuoteTypeSymbols(self):
-        values, params = self.db.getRows('quoteType', columns=['keySymbol'])
-        return [x[0] for x in values]
+    def dbCommit(self):
+        # call from base to commit
+        self.db.commit()
+        
+    # def getQuoteTypeSymbols(self):
+    #     values, params = self.db.getRows('quoteType', columns=['keySymbol'])
+    #     return [x[0] for x in values]
 
-    def getData(self, symbols, types):
-        data = {}
-        types = set(types).intersection(self.__modulesForTypes.keys())
-        if len(symbols) == 0 or len(types) == 0: return data
+    # def getData(self, symbols, types):
+    #     data = {}
+    #     types = set(types).intersection(self.__modulesForTypes.keys())
+    #     if len(symbols) == 0 or len(types) == 0: return data
 
-        modules = set()
-        for type in types:
-            modules = modules.union(set(self.__modulesForTypes[type]))
+    #     modules = set()
+    #     for type in types:
+    #         modules = modules.union(set(self.__modulesForTypes[type]))
 
-        for symbol in symbols:
-            data[symbol] = {}
-            for module in modules:
-                values, params = self.db.getRows(module, whereColumns=['keySymbol'], areValues=[symbol])
-                if len(values) == 0: continue
-                data[symbol][module] = {}
-                for value in values:
-                    index = 1
-                    for param in params[1:]:
-                        data[symbol][module][param] = value[index]
-                        index += 1
-        return data
+    #     for symbol in symbols:
+    #         data[symbol] = {}
+    #         for module in modules:
+    #             values, params = self.db.getRows(module, whereColumns=['keySymbol'], areValues=[symbol])
+    #             if len(values) == 0: continue
+    #             data[symbol][module] = {}
+    #             for value in values:
+    #                 index = 1
+    #                 for param in params[1:]:
+    #                     data[symbol][module][param] = value[index]
+    #                     index += 1
+    #     return data

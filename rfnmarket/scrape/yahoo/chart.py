@@ -6,7 +6,14 @@ from pprint import pp
 class Chart(Base):
     dbName = 'yahoo_chart'
 
+    @staticmethod
+    def getTableNames(tableName):
+        if tableName == 'all':
+            return ['indicators', 'dividends', 'splits', 'indicators',  'capitalGains']
+        return [tableName]
+
     def update(self, symbols, forceUpdate=False):
+        print(len(symbols))
         # set all symbols with lowest period1 of 10 years
 
         # check last timestamp of symbols in quote database
@@ -180,6 +187,10 @@ class Chart(Base):
         self.updateStatus(symbol)
         # log.info('full time   : %s: %s' % (datetime.now()- start, symbol))
         self.start = datetime.now()    
+    
+    def dbCommit(self):
+        # call from base to commit
+        self.db.commit()
     
     def getChart(self, symbol, typeName):
         chart = {}
