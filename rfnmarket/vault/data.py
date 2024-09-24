@@ -565,7 +565,7 @@ class Data():
             },
         },
         'all': {
-            'info': 'chart data',
+            'info': 'all avalable database data',
             'dataFrames': {
                 'QuoteSummary': {
                     'scrapes': {
@@ -581,6 +581,39 @@ class Data():
                 'Chart': {
                     'scrapes': {
                         scrape.yahoo.Chart: {
+                            'all': {
+                                'columnSets': [
+                                    ['*', '', False, False, False, False],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'StockList': {
+                    'scrapes': {
+                        scrape.fmp.StockList: {
+                            'all': {
+                                'columnSets': [
+                                    ['*', '', False, False, False, False],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'Tickers': {
+                    'scrapes': {
+                        scrape.polygon.Tickers: {
+                            'all': {
+                                'columnSets': [
+                                    ['*', '', False, False, False, False],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'Saved': {
+                    'scrapes': {
+                        scrape.saved.Saved: {
                             'all': {
                                 'columnSets': [
                                     ['*', '', False, False, False, False],

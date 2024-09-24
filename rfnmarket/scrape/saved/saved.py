@@ -11,8 +11,9 @@ class Saved():
     @staticmethod
 
     def getTableNames(tableName):
-        # if tableName == 'all':
-        #     return list(const.QUOTESUMMARY_MODULES.keys())
+        if tableName == 'all':
+            db = database.Database(Saved.dbName)
+            return db.getTableNames()
         return [tableName]
 
     def __init__(self, symbols=[], tables=[], forceUpdate=False):

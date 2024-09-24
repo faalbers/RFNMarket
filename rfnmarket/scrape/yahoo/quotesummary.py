@@ -176,7 +176,6 @@ class QuoteSummary(Base):
             params.append(module)
             values.append(int(datetime.now().timestamp()))
         self.db.update( 'status_db', 'keySymbol', symbol, params, tuple(values) )
-        self.db.commit()
 
     def pushAPIData(self, symbolIndex, response):
         symbol = self.symbols[symbolIndex]
@@ -202,6 +201,7 @@ class QuoteSummary(Base):
 
     def dbCommit(self):
         # call from base to commit
+        print('hello')
         self.db.commit()
         
     # def getQuoteTypeSymbols(self):

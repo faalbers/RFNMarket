@@ -9,11 +9,14 @@ class Chart(Base):
     @staticmethod
     def getTableNames(tableName):
         if tableName == 'all':
-            return ['indicators', 'dividends', 'splits', 'indicators',  'capitalGains']
+            tableNames = []
+            db = database.Database(Chart.dbName)
+            for table in ['indicators', 'dividends', 'splits', 'indicators',  'capitalGains']:
+                tableNames.append(db.getTableDataFrame(table).loc[0,'tableName'])
+            return tableNames
         return [tableName]
 
     def update(self, symbols, forceUpdate=False):
-        print(len(symbols))
         # set all symbols with lowest period1 of 10 years
 
         # check last timestamp of symbols in quote database

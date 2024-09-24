@@ -127,7 +127,7 @@ class Base():
                     log.debug('got %s requests with status code: %s: %s' % (scCount, statusCode, apiconst.STATUS_CODES[statusCode]['short']))
                 # check test value after each block to make sure data is consistent
                 newTestValue = self.testValue()
-            # we commit after blocksize entry
-            self.dbCommit()
+                # we commit after blocksize entry
+                self.dbCommit()
             if len(retryReqArgsIndices) > 0:
                 log.debug('Retrying %s more requests that did not pass the test ...' % len(retryReqArgsIndices))
