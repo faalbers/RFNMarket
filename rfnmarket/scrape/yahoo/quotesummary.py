@@ -90,7 +90,7 @@ class QuoteSummary(Base):
                 symbolModules[symbol] = set().union(modules)
         return symbolModules
 
-    def __init__(self, symbols=[], types=None, tables=[], forceUpdate=False):
+    def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()
         self.db = database.Database(self.dbName)
         # update if needed 

@@ -45,7 +45,7 @@ class Chart(Base):
         
         return symbolPeriod1
 
-    def __init__(self, symbols=None, types=None, tables=None, forceUpdate=False):
+    def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()
         
         # setup database
