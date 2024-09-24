@@ -338,6 +338,22 @@ class Data():
         # check_symbols: cross check with symbols
         # make_upper: make this data upper case
         # make_datetime: turn collumn timestamps into Datetime
+        'test': {
+            'info': 'ticker traded in us markets',
+            'dataFrames': {
+                'profile': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'trailingBasicEPS': {
+                                'columnSets': [
+                                    ['keySymbol', 'symbol', True, False, True, False],
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
         'ussymbols': {
             'info': 'ticker traded in us markets',
             'postProcs': [__findUSExchangeSymbols],

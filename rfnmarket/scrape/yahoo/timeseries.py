@@ -5,6 +5,8 @@ from datetime import datetime
 import json
 
 class TimeSeries(Base):
+    dbName = 'yahoo_timeseries'
+
     def setUpdatePeriods(self):
         mult = 1
         # we use a default of a bit more then 3 months to make sure we get latest quarterly
@@ -81,7 +83,11 @@ class TimeSeries(Base):
 
     def __init__(self, symbols=None, types=None, tables=None, forceUpdate=False):
         super().__init__()
+        self.db = database.Database(self.dbName)
 
+        print(symbols)
+        print(tables)
+        return
         self.updateTables(tables)
         
         log.info('QuoteSummary update')
