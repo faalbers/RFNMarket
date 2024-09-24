@@ -12,13 +12,10 @@ class Tickers():
     def updateData(self, catalogs, symbols, forceUpdate=False):
         self.vdata.updateData(catalogs, symbols, forceUpdate=forceUpdate)
 
-    def getData(self, catalogs, symbols, update=False, forceUpdate=False):
-        data = self.vdata.getData(catalogs, symbols, update=update, forceUpdate=forceUpdate)
+    def getData(self, catalogs, symbols=[], update=False, forceUpdate=False):
+        data = self.vdata.getData(catalogs, symbols=symbols, update=update, forceUpdate=forceUpdate)
         return data
-
-    def getSymbols(self):
-        return self.vdata.getSymbols()
-    
+   
     def getDataCatalog(self):
         return self.vdata.getCatalog()
 

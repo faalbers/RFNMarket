@@ -7,6 +7,12 @@ from datetime import datetime
 
 class StockList(Base):
     dbName = 'fmp_stocklist'
+    
+    @staticmethod
+    def getTableNames(tableName):
+        if tableName == 'all':
+            return ['stocklist']
+        return [tableName]
 
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()
