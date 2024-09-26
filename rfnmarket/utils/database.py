@@ -113,7 +113,6 @@ class Database():
                 whereString = "(%s)"  % ','.join([("[%s]"%x) for x in whereColumns])
                 areString = "(%s)"  % ','.join([("'%s'"%x) for x in areValues])
             execString += " WHERE %s = %s" % (whereString, areString)
-        print(execString)
         return pd.read_sql(execString, self.connection)
 
     def test(self):

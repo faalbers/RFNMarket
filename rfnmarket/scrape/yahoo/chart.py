@@ -10,12 +10,6 @@ class Chart(Base):
 
     @staticmethod
     def getTableNames(tableName):
-        if tableName == 'all':
-            tableNames = []
-            db = database.Database(Chart.dbName)
-            for table in ['indicators', 'dividends', 'splits', 'indicators',  'capitalGains']:
-                tableNames.append(db.getTableDataFrame(table).loc[0,'tableName'])
-            return tableNames
         return [tableName]
 
     def update(self, symbols, forceUpdate=False):
@@ -24,7 +18,8 @@ class Chart(Base):
         if self.db.tableExists('status_db'):
             dfStatus = pd.read_sql("SELECT * FROM 'status_db'", self.db.getConnection(), index_col='keySymbol')
             for symbol in dfStatus.index:
-                foundSymbolTimestamps[symbol] = int(dfStatus.loc[symbol,'date'])
+                foundSymbolTimestamps[symbol] = int(dfStatus.loc[symbol,'chart'])
+        print(foundSymbolTimestamps)
         
         # set period1 for all symbol requests
         symbolPeriod1 = {}
@@ -48,6 +43,7 @@ class Chart(Base):
 
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()
+        print(tables)
 
         # setup database
         self.db = database.Database(self.dbName)
@@ -159,21 +155,34 @@ class Chart(Base):
                     dtype = {'date': 'TIMESTAMP PRIMARY KEY'}
                     dfChart.to_sql(tableName, self.db.getConnection(), if_exists='replace', dtype=dtype)
 
-                    # update status_db
-                    if not self.db.tableExists('status_db'):
+                    # update chart tablenames
+                    timeTableName = 'chart'
+                    if not self.db.tableExists(timeTableName):
                         # create new on if it does not exist
-                        statusData = [{'keySymbol': symbol, 'tableName': tableName, 'date': dfChart.index[-1]}]
+                        statusData = [{'keySymbol': symbol, 'tableName': tableName}]
+                        dfChartTables = pd.DataFrame(statusData)
+                        dfChartTables.set_index('keySymbol', inplace=True)
+                    else:
+                        # enter in existing status
+                        dfChartTables = pd.read_sql("SELECT * FROM '%s'" % timeTableName, self.db.getConnection(), index_col='keySymbol')
+                        dfChartTables.loc[symbol,'tableName'] = tableName
+                    dtype = {'keySymbol': 'STRING PRIMARY KEY'}
+                    dfChartTables.to_sql(timeTableName, self.db.getConnection(), if_exists='replace', dtype=dtype)
+                    
+                    
+                    # update status_db
+                    statusTableName = 'status_db'
+                    if not self.db.tableExists(statusTableName):
+                        # create new on if it does not exist
+                        statusData = [{'keySymbol': symbol, timeTableName: dfChart.index[-1]}]
                         dfStatus = pd.DataFrame(statusData)
                         dfStatus.set_index('keySymbol', inplace=True)
                     else:
                         # enter in existing status
-                        dfStatus = pd.read_sql("SELECT * FROM 'status_db'", self.db.getConnection(), index_col='keySymbol')
-                        dfStatus.loc[symbol,'tableName'] = tableName
-                        dfStatus.loc[symbol,'date'] = dfChart.index[-1]
-                    
-                    # save status
+                        dfStatus = pd.read_sql("SELECT * FROM '%s'" % statusTableName, self.db.getConnection(), index_col='keySymbol')
+                        dfStatus.loc[symbol,timeTableName] = dfChart.index[-1]
                     dtype = {'keySymbol': 'STRING PRIMARY KEY'}
-                    dfStatus.to_sql('status_db', self.db.getConnection(), if_exists='replace', dtype=dtype)
+                    dfStatus.to_sql(statusTableName, self.db.getConnection(), if_exists='replace', dtype=dtype)
     
     def dbCommit(self):
         # call from base to commit
