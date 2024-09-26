@@ -14,6 +14,15 @@ class Data():
             self.databases[scrapeClass] = database.Database(scrapeClass.dbName)
         return self.databases[scrapeClass]
 
+    def closeScrapeDB(self, scrapeClass):
+        if scrapeClass in self.databases:
+            self.databases.pop(scrapeClass)
+    
+    def closeAllScrapeDB(self):
+        scrapeClasses = list(self.databases.keys())
+        for scrapeClass in scrapeClasses:
+            self.closeScrapeDB(scrapeClass)
+
     def updateData(self, catalogs=[], symbols=[], forceUpdate=False):
         # gather scrape classes and needed tables
         scrapeClasses = {}
@@ -83,7 +92,7 @@ class Data():
                             dfSearch = db.getTable(tableName, columns=list(columns.keys()))
                             
                             # build table DataFrame
-                            dfTables[tableName] = pd.DataFrame(index=dfSearch.index)
+                            dfTable = pd.DataFrame(index=dfSearch.index)
                             indexColumns = set()
                             symbolsColumns = set()
                             for searchColumn, makeColumnSets in columns.items():
@@ -91,44 +100,36 @@ class Data():
                                     makeColumn = makeColumnSet[0]
                                     makeUpper = makeColumnSet[3]
                                     makeDatetime = makeColumnSet[4]
-                                    dfTables[tableName][makeColumn] = dfSearch[searchColumn]
+                                    dfTable[makeColumn] = dfSearch[searchColumn]
                                     if makeUpper:
-                                        dfTables[tableName][makeColumn] = dfTables[tableName][makeColumn].str.upper()
+                                        dfTable[makeColumn] = dfTable[makeColumn].str.upper()
                                     if makeDatetime:
-                                        dfTables[tableName][makeColumn] = pd.to_datetime(dfTables[tableName][makeColumn], unit='s').dt.tz_localize('US/Pacific')
+                                        dfTable[makeColumn] = pd.to_datetime(dfTable[makeColumn], unit='s').dt.tz_localize('US/Pacific')
                                     makeIndex = makeColumnSet[1]
                                     checkSymbols = makeColumnSet[2]
                                     if makeIndex: indexColumns.add(makeColumn)
                                     if checkSymbols: symbolsColumns.add(makeColumn)
 
-                            
                             if len(symbolsColumns) == 1:
                                 symbolsColumn = symbolsColumns.pop()
-                                dfTables[tableName] = dfTables[tableName][dfTables[tableName][symbolsColumn].isin(symbols)]
+                                dfTable = dfTable[dfTable[symbolsColumn].isin(symbols)]
                             if len(indexColumns) == 1:
                                 indexColumn = indexColumns.pop()
-                                dfTables[tableName].set_index(indexColumn, inplace=True,verify_integrity = True)
+                                dfTable.set_index(indexColumn, inplace=True,verify_integrity = True)
+                            
+                            dfTables[tableName] = dfTable
+                            dfTables[tableName] = {'df': dfTable, 'scrapeClass': scrapeClass}
+
                 dbdata[dfName] = {}
                 
                 # run tables post procs
                 if 'postProcs' in dfData:
                     for proc in dfData['postProcs']:
                         dbdata[dfName] = proc(self, dfTables)
-                    # if 'merge' in dfData['postFunctions']:
-                    #     tableNames = list(dfTables)
-                    #     dfMerged = pd.DataFrame()
-                    #     for tableName in tableNames:
-                    #         dfTable = dfTables.pop(tableName)
-                    #         dfMerged = pd.merge(dfMerged, dfTable, left_index=True, right_index=True, how='outer')
-                    #     dbdata[dfName]['merged'] = dfMerged
-                    # else:
-                    #     dbdata[dfName] = dfTables
-                    
-                    # if 'dropDuplicates' in dfData['postFunctions']:
-                    #     for tableName , df in dbdata[dfName].items():
-                    #         df.drop_duplicates(inplace=True)
                 else:
-                    dbdata[dfName] = dfTables
+                    dbdata[dfName] = {}
+                    for tableName, tableData in dfTables.items():
+                        dbdata[dfName][tableName] = tableData['df']
             
             # run dataframes post procs
             if 'postProcs' in catData:
@@ -136,7 +137,8 @@ class Data():
                     data[catalog] = proc(self, dbdata)
             else:
                 data[catalog] = dbdata
-            
+        
+        self.closeAllScrapeDB()
         return data
 
     def getCatalog(self):
@@ -245,80 +247,26 @@ class Data():
         return data
 
     @staticmethod
-    def __getChartData(self, data):
-        catalogDB = {
-            'mychart': {
-                'dataFrames': {
-                },
-            },
-        }
-        dataframe = {
-            'postFunctions': ['merge'],
-            'scrapes': {
-                scrape.yahoo.Chart: {
-                },
-            },
-        }
-        tableTypes = {
-            'indicators': {
-                'columnSets': [
-                    ['timestamp', 'timestamp', True, False, False, True],
-                    ['open', 'open', False, False, False, False],
-                    ['open', 'close', False, False, False, False],
-                    ['adjclose', 'adjclose', False, False, False, False],
-                    ['high', 'high', False, False, False, False],
-                    ['low', 'low', False, False, False, False],
-                    ['volume', 'volume', False, False, False, False],
-                ],
-            },
-            'dividends': {
-                'columnSets': [
-                    ['timestamp', 'timestamp', True, False, False, True],
-                    ['amount', 'dividend', False, False, False, False],
-                ],
-            },
-            'capitalGains': {
-                'columnSets': [
-                    ['timestamp', 'timestamp', True, False, False, True],
-                    ['amount', 'capitalGain', False, False, False, False],
-                ],
-            },
-            'splits': {
-                'columnSets': [
-                    ['timestamp', 'timestamp', True, False, False, True],
-                    ['denominator', 'denominator', False, False, False, False],
-                    ['numerator', 'numerator', False, False, False, False],
-                    ['splitRatio', 'splitRatio', False, False, False, False],
-                ],
-            },
-        }
-        dfTables = data['chart']['merged']
+    def __getTimeTable(self, data):
+        dfsTimeTable = {}
+        for tableName, tableData in data.items():
+            scrapeClass = tableData['scrapeClass']
+            dfTableNames = tableData['df']
+            db = self.getScrapeDB(scrapeClass)
+            for symbol, row in dfTableNames.iterrows():
+                tableName = row['tableName']
+                dfTable = pd.read_sql("SELECT * FROM '%s'" % tableName, db.getConnection())
+                dfTable['date'] = pd.to_datetime(dfTable['date'], unit='s').dt.tz_localize('US/Pacific')
+                dfTable.set_index('date', inplace=True)
+                dfsTimeTable[symbol] = dfTable
 
-        # create catalogDB
-        catalogDB = {
-            'mychart': {
-                'dataFrames': {
-                },
-            },
-        }
-        for symbol, row in dfTables.iterrows():
-            sdataframe = copy.deepcopy(dataframe)
-            for tableType in row.index:
-                tableName = row[tableType]
-                if tableName == tableName:
-                    sdataframe['scrapes'][scrape.yahoo.Chart][tableName] = tableTypes[tableType].copy()
-            catalogDB['mychart']['dataFrames'][symbol] = sdataframe
-
-        mychartData = self.getData(['mychart'], catalogDB=catalogDB)
-
-        return mychartData
+        return dfsTimeTable
     
     @staticmethod
     def __mergeDataFrames(self, data):
-        tableNames = list(data.keys())
         dfMerged = pd.DataFrame()
-        for tableName in tableNames:
-            dfTable = data[tableName]
+        for tableName, tableData in data.items():
+            dfTable = tableData['df']
             dfMerged = pd.merge(dfMerged, dfTable, left_index=True, right_index=True, how='outer')
         return {'merged': dfMerged}
         
@@ -559,34 +507,16 @@ class Data():
         },
         'chart': {
             'info': 'chart data',
-            'postProcs': [__getChartData],
+            # 'postProcs': [__getTimeTable],
             'dataFrames': {
                 'chart': {
-                    'postProcs': [__mergeDataFrames],
+                    'postProcs': [__getTimeTable],
                     'scrapes': {
                         scrape.yahoo.Chart: {
-                            'indicators': {
+                            'chart': {
                                 'columnSets': [
                                     ['keySymbol', 'symbol', True, True, True, False],
-                                    ['tableName', 'indicators', False, False, False, False],
-                                ],
-                            },
-                            'dividends': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['tableName', 'dividends', False, False, False, False],
-                                ],
-                            },
-                            'splits': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['tableName', 'splits', False, False, False, False],
-                                ],
-                            },
-                            'capitalGains': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['tableName', 'capitalGains', False, False, False, False],
+                                    ['tableName', 'tableName', False, False, False, False],
                                 ],
                             },
                         },

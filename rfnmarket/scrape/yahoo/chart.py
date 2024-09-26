@@ -19,7 +19,6 @@ class Chart(Base):
             dfStatus = pd.read_sql("SELECT * FROM 'status_db'", self.db.getConnection(), index_col='keySymbol')
             for symbol in dfStatus.index:
                 foundSymbolTimestamps[symbol] = int(dfStatus.loc[symbol,'chart'])
-        print(foundSymbolTimestamps)
         
         # set period1 for all symbol requests
         symbolPeriod1 = {}
@@ -43,7 +42,6 @@ class Chart(Base):
 
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()
-        print(tables)
 
         # setup database
         self.db = database.Database(self.dbName)
@@ -181,7 +179,8 @@ class Chart(Base):
                         # enter in existing status
                         dfStatus = pd.read_sql("SELECT * FROM '%s'" % statusTableName, self.db.getConnection(), index_col='keySymbol')
                         dfStatus.loc[symbol,timeTableName] = dfChart.index[-1]
-                    dtype = {'keySymbol': 'STRING PRIMARY KEY'}
+                    # dtype = {'keySymbol': 'STRING PRIMARY KEY'}
+                    dtype = {'keySymbol': 'STRING PRIMARY KEY', timeTableName: 'TIMESTAMP'}
                     dfStatus.to_sql(statusTableName, self.db.getConnection(), if_exists='replace', dtype=dtype)
     
     def dbCommit(self):
