@@ -80,7 +80,7 @@ class Data():
                                     if not searchColumn in columns:
                                         columns[searchColumn] = []
                                     columns[searchColumn].append(columnSet[1:])
-                            dfSearch = db.getTableDataFrame(tableName, columns=list(columns.keys()))
+                            dfSearch = db.getTable(tableName, columns=list(columns.keys()))
                             
                             # build table DataFrame
                             dfTables[tableName] = pd.DataFrame(index=dfSearch.index)
@@ -105,7 +105,6 @@ class Data():
                             if len(symbolsColumns) == 1:
                                 symbolsColumn = symbolsColumns.pop()
                                 dfTables[tableName] = dfTables[tableName][dfTables[tableName][symbolsColumn].isin(symbols)]
-
                             if len(indexColumns) == 1:
                                 indexColumn = indexColumns.pop()
                                 dfTables[tableName].set_index(indexColumn, inplace=True,verify_integrity = True)
@@ -344,7 +343,22 @@ class Data():
                 'profile': {
                     'scrapes': {
                         scrape.yahoo.TimeSeries: {
-                            'trailingBasicEPS': {
+                            # 'trailingBasicEPS': {
+                            #     'columnSets': [
+                            #         ['keySymbol', 'symbol', True, False, True, False],
+                            #     ],
+                            # },
+                            # 'annualBasicEPS': {
+                            #     'columnSets': [
+                            #         ['keySymbol', 'symbol', True, False, True, False],
+                            #     ],
+                            # },
+                            # 'quarterlyBasicEPS': {
+                            #     'columnSets': [
+                            #         ['keySymbol', 'symbol', True, False, True, False],
+                            #     ],
+                            # },
+                            'quarterlyStockholdersEquity': {
                                 'columnSets': [
                                     ['keySymbol', 'symbol', True, False, True, False],
                                 ],

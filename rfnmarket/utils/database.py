@@ -39,7 +39,10 @@ class Database():
         return names
 
     def tableExists(self, tableName):
-        return (tableName in self.getTableNames())
+        cursor = self.connection.cursor()
+        execString = "SELECT name FROM sqlite_master WHERE type='table' AND name='%s'" % tableName
+        if cursor.execute(execString).fetchone() != None: return True
+        return False
 
     def getColumnNames(self, tableName):
         if not self.tableExists(tableName): return pd.DataFrame()
@@ -92,7 +95,13 @@ class Database():
             return valuesFound, paramsFound
         return [], []
 
-    def getTableDataFrame(self, tableName, columns=[], whereColumns=[], areValues=[]):
+    def getColumn(self, tableName, columnName):
+        # pd.read_sql("SELECT date FROM '%s'" % type, self.db.getConnection())['date']
+        execString = "SELECT [%s] FROM '%s'" % (columnName, tableName)
+        print(execString)
+        return pd.read_sql(execString, self.connection)[columnName]
+
+    def getTable(self, tableName, columns=[], whereColumns=[], areValues=[]):
         columnsString = '*'
         if len(columns) > 0:
             columnsString = ','.join([("[%s]"%x) for x in columns])
@@ -104,6 +113,7 @@ class Database():
                 whereString = "(%s)"  % ','.join([("[%s]"%x) for x in whereColumns])
                 areString = "(%s)"  % ','.join([("'%s'"%x) for x in areValues])
             execString += " WHERE %s = %s" % (whereString, areString)
+        print(execString)
         return pd.read_sql(execString, self.connection)
 
     def test(self):

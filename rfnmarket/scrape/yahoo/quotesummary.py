@@ -93,6 +93,7 @@ class QuoteSummary(Base):
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()
         self.db = database.Database(self.dbName)
+        
         # update if needed 
         # modules not used , might as well remove it, it's always empty
         symbolModules = self.getSymbolModules(symbols, tables, forceUpdate=forceUpdate)
