@@ -33,10 +33,11 @@ class Data():
                     if isinstance(dictData, dict):
                         for key, nextData in dictData.items():
                             if key == 'scrapes':
-                                for scrape, scrapeData in nextData.items():
-                                    if not scrape in scrapeClasses:
-                                        scrapeClasses[scrape] = []
-                                    scrapeClasses[scrape] += list(scrapeData.keys())
+                                for scrapeClass, scrapeData in nextData.items():
+                                    if not scrapeClass in scrapeClasses:
+                                        scrapeClasses[scrapeClass] = []
+                                    for tableName in scrapeData.keys():
+                                        scrapeClasses[scrapeClass] += scrapeClass.getTableNames(tableName)
                                 return
                             recursedict(nextData)
                 
@@ -350,6 +351,48 @@ class Data():
                                     ['MIC', 'mic', False, False, False, False],
                                     ['ACRONYM', 'acronym', False, False, False, False],
                                     ['ISO COUNTRY CODE (ISO 3166)', 'cc', False, False, False, False],
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        'qtest': {
+            'info': 'just a test, remove latern',
+            'dataFrames': {
+                'statistics': {
+                    'scrapes': {
+                        scrape.yahoo.QuoteSummary: {    # scrape class to retrieve data from
+                            'defaultKeyStatistics': {   # table name to be searched
+                                'columnSets': [
+                                    ['keySymbol', 'symbol', True, True, True, False],
+                                    ['trailingEps', 'trailingEps', False, False, False, False],
+                                    ['forwardEps', 'forwardEps', False, False, False, False],
+                                    ['pegRatio', 'pegRatio', False, False, False, False],
+                                ],
+                            },
+                            'quoteType': {
+                                'columnSets': [
+                                    ['keySymbol', 'symbol', True, True, True, False],
+                                    ['longName', 'name', False, False, False, False],
+                                    ['quoteType', 'typeQuote', False, False, True, False],
+                                ],
+                            },
+                            'summaryDetail': {
+                                'columnSets': [
+                                    ['keySymbol', 'symbol', True, True, True, False],
+                                    ['currency', 'currency', False, False, False, False],
+                                ],
+                            },
+                            'assetProfile': {
+                                'columnSets': [
+                                    ['keySymbol', 'symbol', True, True, True, False],
+                                    ['sectorKey', 'sector', False, False, False, False],
+                                    ['industryKey', 'industry', False, False, False, False],
+                                    ['country', 'country', False, False, False, False],
+                                    ['city', 'city', False, False, False, False],
+                                    ['state', 'state', False, False, False, False],
                                 ],
                             },
                         },

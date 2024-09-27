@@ -38,6 +38,19 @@ class Database():
         cursor.close()
         return names
 
+    def getTableDtype(self, tableName):
+        data = {}
+        cursor = self.connection.cursor()
+        result = cursor.execute("SELECT sql FROM sqlite_schema WHERE (type,name)=('table','%s')" % tableName).fetchone()
+        if result == None: return data
+        for dtype in result[0].split('\n')[1:-1]:
+            dtype = dtype.strip().strip(',')
+            splits = dtype.split()
+            paramName = splits[0].strip('"')
+            dtype = ' '.join(splits[1:])
+            data[paramName] = dtype
+        return data
+
     def tableExists(self, tableName):
         cursor = self.connection.cursor()
         execString = "SELECT name FROM sqlite_master WHERE type='table' AND name='%s'" % tableName

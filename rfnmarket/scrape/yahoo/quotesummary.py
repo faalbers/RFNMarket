@@ -4,6 +4,8 @@ from pprint import pp
 from datetime import datetime
 import json
 from . import const
+import pandas as pd
+import numpy as np
 
 # https://yahooquery.dpguthrie.com/guide/ticker/modules/
 
@@ -35,59 +37,39 @@ class QuoteSummary(Base):
     
     def getSymbolModules(self, symbols, tables, forceUpdate):
         modules = set(tables)
-        if '*' in modules:
-            modules = set(const.QUOTESUMMARY_MODULES.keys())
         moduleUpdatePeriods = self.getModuleUpdatePeriods(forceUpdate)
-        symbolModules = {}
 
-        # collect modules per symbol if update period is over for that module
+        # get status
+        status = 'status_db'
+        dfStatus = None
         now = datetime.now()
+        if self.db.tableExists(status):
+            dfStatus = pd.read_sql("SELECT * FROM '%s'" % status, self.db.getConnection(), index_col='keySymbol')
         
-        values, params = self.db.getRows('status_db')
-        
-        # get symbol indices of symbols that were last collected
-        foundSymbolIndices = {}
-        index = 0
-        for value in values:
-            foundSymbolIndices[value[0]] = index
-            index += 1
-
-        # get mdule indices of modules that were last collected
-        foundModuleIndices = {}
-        index = 0
-        for param in params:
-            foundModuleIndices[param] = index
-            index += 1
-
         # check all requested symbols
+        symbolModules = {}
         for symbol in symbols:
-            if symbol in foundSymbolIndices:
-                # get status data for symbol
-                value = values[foundSymbolIndices[symbol]]
-                foundModules = set()
-                for module in modules:
-                    if module in foundModuleIndices:
-                        moduleTimestamp = value[foundModuleIndices[module]]
-                        if moduleTimestamp != None:
-                            # check if found modules are in curren symbol's modules list and if there was a moduleTimestamp
-                            if module in modules:
-                                # set update timestamp
-                                updateTimestamp = int(now.timestamp())-moduleUpdatePeriods['default']
-                                if module in moduleUpdatePeriods:
-                                    # we found it, use that one
-                                    updateTimestamp = int(now.timestamp())-moduleUpdatePeriods[module]
-                                
-                                # add module if update timestamp is lower or equal then the module update timestamp
-                                if updateTimestamp >= moduleTimestamp:
-                                    foundModules.add(module)
-                        else:
-                            # added because dymbol does not have these modules done before
-                            foundModules.add(module)
-                # now set the modules that need to be updated for that symbol if there are any
-                if len(foundModules) > 0:
-                    symbolModules[symbol] = foundModules
+            if isinstance(dfStatus, pd.DataFrame):
+                updateModules = set(dfStatus.columns)
+                symbolModulesToDo = modules.difference(updateModules)
+                for module in modules.intersection(updateModules):
+                    moduleTimestamp = dfStatus[module].get(symbol, None)
+                    if moduleTimestamp == None:
+                        symbolModulesToDo.add(module)
+                        continue
+                    else:
+                        updateTimestamp = int(now.timestamp())-moduleUpdatePeriods['default']
+                        if module in moduleUpdatePeriods:
+                            # we found it, use that one
+                            updateTimestamp = int(now.timestamp())-moduleUpdatePeriods[module]
+                        # add module if update timestamp is lower or equal then the module update timestamp
+                        if updateTimestamp >= moduleTimestamp:
+                            symbolModulesToDo.add(module)
+                if len(symbolModulesToDo) > 0: symbolModules[symbol] = symbolModulesToDo
+
             else:
                 symbolModules[symbol] = set().union(modules)
+
         return symbolModules
 
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
@@ -128,56 +110,6 @@ class QuoteSummary(Base):
         log.info('modules processing : %s' % " ".join(modulesProcessed))
         self.multiRequest(requestArgsList, blockSize=100)
     
-    def updateDatabaseRow(self, symbol, module, moduleData):
-            self.db.createTable(module, ["'keySymbol' TEXT PRIMARY KEY", "'timestamp' TIMESTAMP"])
-            self.db.insertOrIgnore(module, ['keySymbol'], (symbol,))
-            params = ['timestamp']
-            values = [int(datetime.now().timestamp())]
-            missedTypes = set()
-            for param, value in moduleData.items():
-                if isinstance(value, int):
-                    self.db.addColumn(module, param, 'INTEGER')
-                    params.append(param)
-                    values.append(value)
-                elif isinstance(value, float):
-                    self.db.addColumn(module, param, 'FLOAT')
-                    params.append(param)
-                    values.append(value)
-                elif isinstance(value, str):
-                    self.db.addColumn(module, param, 'TEXT')
-                    params.append(param)
-                    values.append(value)
-                elif isinstance(value, bool):
-                    self.db.addColumn(module, param, 'BOOLEAN')
-                    params.append(param)
-                    values.append(value)
-                elif isinstance(value, list):
-                    self.db.addColumn(module, param, 'JSON')
-                    params.append(param)
-                    values.append(json.dumps(value))
-                elif isinstance(value, dict):
-                    self.db.addColumn(module, param, 'JSON')
-                    params.append(param)
-                    values.append(json.dumps(value))
-                elif isinstance(value, type(None)):
-                    pass
-                else:
-                    missedTypes.add(type(value))
-            self.db.update( module, 'keySymbol', symbol, params, tuple(values) )
-            if len(missedTypes) > 0:
-                log.info('QuoteSummary: missed data types: %s' % list(missedTypes))
-
-    def updateStatus(self, symbol):
-        self.db.createTable('status_db', ["'keySymbol' TEXT PRIMARY KEY"])
-        self.db.insertOrIgnore('status_db', ['keySymbol'], (symbol,))
-        params = []
-        values = []
-        for module in self.symbolModules[symbol]:
-            self.db.addColumn('status_db', module, 'TIMESTAMP')
-            params.append(module)
-            values.append(int(datetime.now().timestamp()))
-        self.db.update( 'status_db', 'keySymbol', symbol, params, tuple(values) )
-
     def pushAPIData(self, symbolIndex, response):
         symbol = self.symbols[symbolIndex]
         if response.headers.get('content-type').startswith('application/json'):
@@ -192,41 +124,51 @@ class QuoteSummary(Base):
                     # handle data return response
                     symbolData = symbolData['result'][0]
                     for module, moduleData in symbolData.items():
-                        self.updateDatabaseRow(symbol, module, moduleData)
-            if 'finance' in symbolData:
-                # handle other possible errors
-                symbolData = symbolData['finance']
-                if symbolData['error'] != None:
-                    symbolData = symbolData['error']
-        self.updateStatus(symbol)
+                        # get mudule data
+                        sModule = pd.Series(moduleData).fillna(value=np.nan).dropna()
+                        # turn dict or list into JSON
+                        dtype = {'keySymbol': 'STRING PRIMARY KEY'}
+                        for param, value in sModule.items():
+                            if isinstance(value, dict) or isinstance(value, list):
+                                sModule[param] = json.dumps(value)
+                                dtype[param] = 'JSON'
+                        # create dataframe
+                        dfModule = pd.DataFrame([sModule], index=[symbol])
+                        dfModule.rename_axis('keySymbol', inplace=True)
+
+                        # get existing module table if it exists and concat
+                        if self.db.tableExists(module):
+                            fdtype = self.db.getTableDtype(module)
+                            # make sure we add the retrieved dtypes
+                            dtype = {**fdtype, **dtype}
+                            dfModuleFound = pd.read_sql("SELECT * FROM '%s'" % module, self.db.getConnection(), index_col='keySymbol')
+                            # remove old symbols from module and concat
+                            dfModuleFound = dfModuleFound[~dfModuleFound.index.isin([symbol])]
+                            dfModule = pd.concat([dfModuleFound, dfModule])
+                        
+                        dtype['keySymbol'] = 'STRING PRIMARY KEY'
+                        dfModule.to_sql(module, self.db.getConnection(), if_exists='replace', dtype=dtype)
+                       
+        # update status
+        status = 'status_db'
+        now = int(datetime.now().timestamp())
+        dtype = {'keySymbol': 'STRING PRIMARY KEY'}
+        if self.db.tableExists(status):
+            dtype = self.db.getTableDtype(status)
+            dfStatus = pd.read_sql("SELECT * FROM '%s'" % status, self.db.getConnection(), index_col='keySymbol')
+            for module in self.symbolModules[symbol]:
+                dtype[module] = 'TIMESTAMP'
+                dfStatus.loc[symbol, module] = now
+        else:
+            dfStatusDict = {}
+            for module in self.symbolModules[symbol]:
+                dtype[module] = 'TIMESTAMP'
+                dfStatusDict[module] = now
+            dfStatus = pd.DataFrame([dfStatusDict], index=[symbol])
+            dfStatus.rename_axis('keySymbol', inplace=True)
+        dfStatus.to_sql(status, self.db.getConnection(), if_exists='replace', dtype=dtype)
 
     def dbCommit(self):
         # call from base to commit
-        print('hello')
         self.db.commit()
         
-    # def getQuoteTypeSymbols(self):
-    #     values, params = self.db.getRows('quoteType', columns=['keySymbol'])
-    #     return [x[0] for x in values]
-
-    # def getData(self, symbols, types):
-    #     data = {}
-    #     types = set(types).intersection(self.__modulesForTypes.keys())
-    #     if len(symbols) == 0 or len(types) == 0: return data
-
-    #     modules = set()
-    #     for type in types:
-    #         modules = modules.union(set(self.__modulesForTypes[type]))
-
-    #     for symbol in symbols:
-    #         data[symbol] = {}
-    #         for module in modules:
-    #             values, params = self.db.getRows(module, whereColumns=['keySymbol'], areValues=[symbol])
-    #             if len(values) == 0: continue
-    #             data[symbol][module] = {}
-    #             for value in values:
-    #                 index = 1
-    #                 for param in params[1:]:
-    #                     data[symbol][module][param] = value[index]
-    #                     index += 1
-    #     return data
