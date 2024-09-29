@@ -1,11 +1,24 @@
-import sqlite3, re
+import sqlite3, json
 from pprint import pp
 import pandas as pd
+import numpy as np
 from . import log
 
 # https://www.sqlite.org/lang_select.html
 
 class Database():
+    __sqlDataTypes = {
+        int:  'INTEGER',
+        np.int64:  'INTEGER',
+        np.float64:  'REAL',
+        np.bool:  'BOOLEAN',
+        float: 'FLOAT',
+        str: 'TEXT',
+        bool: 'BOOLEAN',
+        dict: 'JSON',
+        list: 'JSON',
+    }
+
     def __init__(self, name):
         self.name = name
         self.connection = sqlite3.connect('database/%s.db' % name)
@@ -42,25 +55,46 @@ class Database():
         data = {}
         cursor = self.connection.cursor()
         result = cursor.execute("SELECT sql FROM sqlite_schema WHERE (type,name)=('table','%s')" % tableName).fetchone()
-        if result == None: return data
+        if result == None:
+            cursor.close()
+            return data
         for dtype in result[0].split('\n')[1:-1]:
             dtype = dtype.strip().strip(',')
             splits = dtype.split()
             paramName = splits[0].strip('"')
             dtype = ' '.join(splits[1:])
             data[paramName] = dtype
+        cursor.close()
         return data
 
     def tableExists(self, tableName):
         cursor = self.connection.cursor()
-        execString = "SELECT name FROM sqlite_master WHERE type='table' AND name='%s'" % tableName
-        if cursor.execute(execString).fetchone() != None: return True
+        execString = "SELECT name FROM sqlite_schema WHERE type='table' AND name='%s'" % tableName
+        if cursor.execute(execString).fetchone() != None:
+            cursor.close()
+            return True
+        cursor.close()
         return False
 
+    def getSqlDataTypes(self, tableName):
+        sqlDataTypes = {}
+
+        cursor = self.connection.cursor()
+        result = cursor.execute("SELECT sql FROM sqlite_schema WHERE type='table' AND name='%s'" % tableName).fetchone()
+        if result != None:
+            result = result[0].replace('\n', '').split('(')[1].strip(')')
+            for columnData in result.split(','):
+                columnData = columnData.strip()
+                columnData = columnData.split()
+                nameSql = columnData[0].strip('"')
+                typeSql = ' '.join(columnData[1:])
+                sqlDataTypes[nameSql] = typeSql
+
+        cursor.close()
+        return sqlDataTypes
+        
     def getColumnNames(self, tableName):
-        if not self.tableExists(tableName): return pd.DataFrame()
-        df = pd.read_sql("SELECT * FROM '%s' LIMIT 1" % tableName, self.connection)
-        columns = list(df)
+        columns = list(self.getSqlDataTypes(tableName).keys())
         columns.sort()
         return columns
 
@@ -111,7 +145,6 @@ class Database():
     def getColumn(self, tableName, columnName):
         # pd.read_sql("SELECT date FROM '%s'" % type, self.db.getConnection())['date']
         execString = "SELECT [%s] FROM '%s'" % (columnName, tableName)
-        print(execString)
         return pd.read_sql(execString, self.connection)[columnName]
 
     def getTable(self, tableName, columns=[], whereColumns=[], areValues=[]):
@@ -160,10 +193,24 @@ class Database():
         cursor.execute(execString)
         cursor.close()
 
-    def addColumn(self, tableName, column, type):
-        if not self.tableExists(tableName) or self.columnExists(tableName, column): return
+    def addColumn(self, tableName, columnName, sqlType):
+        if not self.tableExists(tableName) or self.columnExists(tableName, columnName): return
         cursor = self.connection.cursor()
-        execString = "ALTER TABLE '%s' ADD COLUMN '%s' %s" % (tableName, column, type)
+        execString = 'ALTER TABLE "%s" ADD COLUMN "%s" %s' % (tableName, columnName, sqlType)
+        cursor.execute(execString)
+        cursor.close()
+    
+    def addColumns(self, tableName, columnTypes):
+        if self.tableExists(tableName):
+            cursor = self.connection.cursor()
+            for columnName, columnType in columnTypes.items():
+                cursor.execute('ALTER TABLE "%s" ADD COLUMN "%s" %s' % (tableName, columnName, columnType))
+            cursor.close()
+
+
+        if not self.tableExists(tableName) or self.columnExists(tableName, columnName): return
+        cursor = self.connection.cursor()
+        execString = 'ALTER TABLE "%s" ADD COLUMN "%s" %s' % (tableName, columnName, sqlType)
         cursor.execute(execString)
         cursor.close()
     
@@ -180,6 +227,21 @@ class Database():
             execString += " WHERE %s = %s" % (whereString, areString)
             cursor.execute(execString)
             cursor.close
+
+    def updateRow(self, tableName, columns=[], values=tuple(), whereColumns=[], areValues=[]):
+        if not self.tableExists(tableName):
+            raise ValueError('Table does not exist')
+        execString = "UPDATE '%s' SET " % tableName
+        execString += " (%s)" % (','.join([("[%s]"%x) for x in columns]))
+        execString += " ="
+        execString += " (%s)" % (",".join(['?']*len(columns)))
+        whereString = "(%s)"  % (','.join([("[%s]"%x) for x in whereColumns]))
+        areString = "(%s)"  % (','.join([("'%s'"%x) for x in areValues]))
+        execString += " WHERE %s = %s" % (whereString, areString)
+
+        cursor = self.connection.cursor()
+        cursor.execute(execString, tuple(values))
+        cursor.close
 
 
     def update(self, table, id, idValue, columns, values):
@@ -198,7 +260,18 @@ class Database():
         cursor.execute(execString, values)
         cursor.close
 
-    def insertOrIgnore(self, table, columns, values):
+    def insertOrIgnore(self, tableName, columns=[], values=[]):
+        if not self.tableExists(tableName):
+            raise ValueError('Table does not exist')
+        execString = "INSERT OR IGNORE INTO '"+tableName+"'"
+        execString += " ("+",".join(["'"+x+"'" for x in columns])+")"
+        execString += " VALUES"
+        execString += " ("+",".join(['?']*len(columns))+")"
+        cursor = self.connection.cursor()
+        cursor.executemany(execString, values)
+        cursor.close
+
+    def insertOrIgnoreOld(self, table, columns, values):
         if not table in self.getTableNames():
             return
         if isinstance(values, tuple):
@@ -277,10 +350,137 @@ class Database():
 
         print(foundSymbols.keys())
         print(foundSymbols['I'])
+    
+    # ************** new data management *************
+    def idxTableClearRow(self, tableName, indexName, index):
+        dbColumnTypes = self.getSqlDataTypes(tableName)
+        if not indexName in dbColumnTypes:
+            raise ValueError('index column: "%s" not found in table: "%s"' % (indexName, tableName))
+        dbColumnTypes.pop(indexName)
+        columnsString = ','.join(['[%s]'%x for x in dbColumnTypes.keys()])
+        valuesString = ','.join(['NULL'] * len(dbColumnTypes))
+        execString = "UPDATE '%s' SET  (%s) = (%s) WHERE ([%s]) = ('%s')" % (tableName, columnsString, valuesString, indexName, index)
+        cursor = self.connection.cursor()
+        cursor.execute(execString)
+        cursor.close()
 
-def createDatabase(name, createDict):
-    db = Database(name)
-    for tableName, tableParams in createDict.items():
-        db.createTable(tableName, tableParams)
+        "UPDATE table_name SET column_name = NULL WHERE (Specify condition)"
+        "UPDATE 'testA' SET  ([weather],[age],[weight],[family],[hobbies],[fat]) = (NULL,NULL,NULL,NULL,NULL,NULL) WHERE ([name]) = ('Frank')"
+
+    def idxTableUpdateRow(self, tableName, indexName, index, updateColumns, updateValues, preClear=True):
+        if preClear:
+            self.idxTableClearRow(tableName, indexName, index)
+        self.updateRow(tableName, updateColumns, updateValues, whereColumns=[indexName], areValues=[index])
+
+    def idxTableAddIndices(self, tableName, indexName, indices):
+        self.insertOrIgnore(tableName, [indexName], [(i,) for i in indices])
+
+    def idxTableAddMissingColumns(self, tableName, columnTypes):
+        # read table columns and check if it is an index column
+        dbColumnTypes = self.getSqlDataTypes(tableName)
+        indexColumn = None
+        for columnName, columnType in dbColumnTypes.items():
+            if columnType.endswith('PRIMARY KEY'):
+                indexColumn = columnName
+                break
+        if indexColumn == None:
+            raise ValueError('could not find index column in table: %s' % tableName)
+        else:
+            # pop out the index column
+            dbColumnTypes.pop(indexColumn)
+              
+        # add new columns if needed
+        columnsAdd = set(columnTypes.keys()).difference(dbColumnTypes)
+        if len(columnsAdd) > 0:
+            columnAddTypes = {}
+            for columnName in columnsAdd:
+                columnAddTypes[columnName] = columnTypes[columnName]
+            self.addColumns(tableName, columnAddTypes)
+
+    def idxTableCreate(self, tableName, indexName, indexType, columnTypes):
+        tableColumns = []
+        tableColumns.append('"%s" %s PRIMARY KEY' % (indexName, indexType))
+        for columnName, columnType in columnTypes.items():
+            tableColumns.append('"%s" %s' % (columnName, columnType))
+        self.createTable(tableName, tableColumns)
+
+    def __getColumnSqlType(self, column):
+        if isinstance(column, pd.core.indexes.base.Index) or isinstance(column, pd.core.series.Series):
+            cType = column.dtype.type
+        else:
+            cType = type(column)
+        if cType == np.object_:
+            cTypes = set([type(x) for x in column.dropna().values])
+            if len(cTypes) > 1:
+                raise TypeError('too many different types in column %s' % column.name)
+            cType = cTypes.pop()
+        return self.__sqlDataTypes[cType]
+    
+    def writeData(self, data, tableName, index=None, axis=0, preClear=True):
+        columnTypes = {}
+        indices = []
+        indexName = None
+        indexType = None
+
+        if isinstance(data, pd.DataFrame):
+            with pd.option_context('future.no_silent_downcasting', True):
+                data = data.fillna(value=np.nan)
+            # gather data frame info
+            indices = list(data.index)
+            indexName = data.index.name
+            indexType = self.__getColumnSqlType(data.index)
+            # get column data types and match them with sql data types
+            for column in data.columns:
+                columnTypes[column] = self.__getColumnSqlType(data[column])
+        elif isinstance(data, pd.Series):
+            with pd.option_context('future.no_silent_downcasting', True):
+                data = data.fillna(value=np.nan).dropna()
+
+            # gather series info
+            if index == None:
+                raise ValueError('index name must be given when using pandas.Series')
+            indices = [data[index]]
+            indexName = index
+            indexType = self.__getColumnSqlType(data[index])
+            data.pop(index)
+            # get column data types and match them with sql data types
+            for column in data.index:
+                columnTypes[column] = self.__getColumnSqlType(data[column])
+        
+        # create table if it does not exist
+        self.idxTableCreate(tableName, indexName, indexType, columnTypes)
+
+        # add missing columns
+        self.idxTableAddMissingColumns(tableName, columnTypes)
+
+        # add new indices if needed
+        self.idxTableAddIndices(tableName, indexName, indices)
+
+        # update table values
+        if isinstance(data, pd.DataFrame):
+            for index, values in data.iterrows():
+                # get list of columns and their values to be updated
+                updateColumns = []
+                updateValues = []
+                for param in values.dropna().index:
+                    updateColumns.append(param)
+                    if columnTypes[param] == 'JSON':
+                        # do a json dump string if needed
+                        updateValues.append(json.dumps(values[param]))
+                    else:
+                        updateValues.append(values[param])
+                self.idxTableUpdateRow(tableName, indexName, index, updateColumns, updateValues, preClear=preClear)
+        elif isinstance(data, pd.Series):
+            # get list of columns and their values to be updated
+            updateColumns = []
+            updateValues = []
+            for param in data.dropna().index:
+                updateColumns.append(param)
+                if columnTypes[param] == 'JSON':
+                    # do a json dump string if needed
+                    updateValues.append(json.dumps(data[param]))
+                else:
+                    updateValues.append(data[param])
+            self.idxTableUpdateRow(tableName, indexName, indices[0], updateColumns, updateValues, preClear=preClear)
 
 
