@@ -9,124 +9,6 @@ import numpy as np
 
 # https://yahooquery.dpguthrie.com/guide/ticker/modules/
 
-class StatusData():
-    def __init__(self, symbol, modules):
-        self.symbol = symbol
-        
-        timestamp = int(datetime.now().timestamp())
-        dictData = {}
-        for module in modules:
-            dictData[module] = timestamp
-        dataSeries = pd.Series(dictData)
-        
-        # make a one row dataFrame with symbol as index under name keySymbol
-        self.dataDf = pd.DataFrame([dataSeries], index=[self.symbol])
-        self.dataDf.rename_axis('keySymbol', inplace=True)
-
-        # make a sql data types dict for all columns and turn into JSON if needed
-        self.sqlDataTypes = {}
-        for columnName in self.dataDf.columns:
-            self.sqlDataTypes[columnName] = 'TIMESTAMP'
-
-    def appendToSqlTable(self, tableName, db):
-        if db.tableExists(tableName):
-            # get sql data types the table we are going to append to
-            sqlDataTypes = db.getSqlDataTypes(tableName)
-            sqlDataTypes.pop('keySymbol')
-            
-            # check if we need to add columns before appending our data
-            creatColumns = set(self.dataDf.columns).difference(sqlDataTypes.keys())
-            for creatColumn in creatColumns:
-                db.addColumn(tableName, creatColumn, self.sqlDataTypes[creatColumn])
-
-            # set write df
-            writeDataDf = self.dataDf
-            
-            # copy existing values if they exist, overwrite the new ones on it
-            values, params = db.getRows(tableName, whereColumns=['keySymbol'], areValues=[self.symbol])
-            if len(values) > 0:
-                readDataSeries = pd.Series()
-                index = 0
-                for param in params:
-                    readDataSeries[param] = values[0][index]
-                    index += 1
-                readDataSeries = readDataSeries.fillna(value=np.nan).dropna()
-                writeDataDf = pd.DataFrame([readDataSeries])
-                writeDataDf.set_index('keySymbol', inplace=True)
-
-                # add the new ones
-                for symbol, value in self.dataDf.iterrows():
-                    for param in value.index:
-                        writeDataDf.loc[self.symbol, param] = value[param]
-
-            # finally remove existing keySymbol row if it exists and append the new one
-            db.deleteRow(tableName, ['keySymbol'], [self.symbol])
-            writeDataDf.to_sql(tableName, db.getConnection(), if_exists='append')
-        else:
-            # create the new table with this data row
-            sqlDataTypes = copy.deepcopy(self.sqlDataTypes)
-            sqlDataTypes['keySymbol'] = 'STRING PRIMARY KEY'
-            self.dataDf.to_sql(tableName, db.getConnection(), dtype=sqlDataTypes)
-    
-class SymbolData():
-    __sqlDataTypes = {
-        int:  'INTEGER',
-        np.int64:  'INTEGER',
-        np.float64:  'REAL',
-        np.bool:  'BOOLEAN',
-        float: 'FLOAT',
-        str: 'TEXT',
-        bool: 'BOOLEAN',
-        list: 'JSON',
-        dict: 'JSON',
-    }
-
-    def __init__(self, symbol, dictData):
-        self.symbol = symbol
-        
-        # turn all Nones into nan and drop them
-        dataSeries = pd.Series(dictData).fillna(value=np.nan).dropna()
-
-        # make a one row dataFrame with symbol as index under name keySymbol
-        self.dataDf = pd.DataFrame([dataSeries], index=[self.symbol])
-        self.dataDf.rename_axis('keySymbol', inplace=True)
-
-        # make a sql data types dict for all columns and turn into JSON if needed
-        self.sqlDataTypes = {}
-        for columnName in self.dataDf.columns:
-            self.sqlDataTypes[columnName] = self.__sqlDataTypes[type(self.dataDf.loc[symbol, columnName])]
-            if self.sqlDataTypes[columnName] == 'JSON':
-                self.dataDf.loc[symbol, columnName] = json.dumps(self.dataDf.loc[symbol, columnName])
-
-    def appendToSqlTable(self, tableName, db):
-        if db.tableExists(tableName):
-            # get sql data types the table we are going to append to
-            sqlDataTypes = db.getSqlDataTypes(tableName)
-            sqlDataTypes.pop('keySymbol')
-            
-            # check if we need to add columns before appending our data
-            creatColumns = set(self.dataDf.columns).difference(sqlDataTypes.keys())
-            for creatColumn in creatColumns:
-                db.addColumn(tableName, creatColumn, self.sqlDataTypes[creatColumn])
-
-            # finally remove existing keySymbol row if it exists and append the new one
-            db.deleteRow(tableName, ['keySymbol'], [self.symbol])
-            self.dataDf.to_sql(tableName, db.getConnection(), if_exists='append')
-        else:
-            # create the new table with this data row
-            sqlDataTypes = copy.deepcopy(self.sqlDataTypes)
-            sqlDataTypes['keySymbol'] = 'STRING PRIMARY KEY'
-            self.dataDf.to_sql(tableName, db.getConnection(), dtype=sqlDataTypes)
-        
-        # values, params = db.getRows(tableName, columns=['pipi'], whereColumns=['keySymbol'], areValues=[self.symbol])
-        # print(values)
-        # print(params)
-    
-    def test(self):
-        pass
-        # print(self.sqlDataTypes)
-        # print(self.dataDf)
-
 class QuoteSummary(Base):
     dbName = 'yahoo_quotesummary'
 
@@ -168,6 +50,8 @@ class QuoteSummary(Base):
         now = datetime.now()
         if self.db.tableExists(status):
             dfStatus = pd.read_sql("SELECT * FROM '%s'" % status, self.db.getConnection(), index_col='keySymbol')
+        # print(dfStatus.loc['ABR-PD', 'price'])
+        # print(type(dfStatus.loc['ABR-PD', 'price']))
         
         # check all requested symbols
         symbolModules = {}
@@ -249,21 +133,13 @@ class QuoteSummary(Base):
                     symbolData = symbolData['result'][0]
                     modulesStart = datetime.now()
                     for module, moduleData in symbolData.items():
-                        moduleData['keySymbol'] = symbol
-                        pdData = pd.Series(moduleData)
-                        self.db.writeData(pdData, module, index='keySymbol')
-                        
-                        # self.db.writeData(module, )
-                        # sData = SymbolData(symbol, moduleData)
-                        # sData.appendToSqlTable(module, self.db)
+                        self.db.idxTableWriteData(moduleData, module, 'keySymbol', symbol, 'update')
+
         # update status
-        status = {'keySymbol': symbol}
+        status = {}
         for module in self.symbolModules[symbol]:
             status[module] = int(datetime.now().timestamp())
-        pdData = pd.Series(status)
-        self.db.writeData(pdData, 'status_db', index='keySymbol', preClear=False)
-        # statusData = StatusData(symbol, self.symbolModules[symbol])
-        # statusData.appendToSqlTable('status_db', self.db)
+        self.db.idxTableWriteData(status, 'status_db', 'keySymbol', symbol, 'update')
     
     def dbCommit(self):
         # call from base to commit

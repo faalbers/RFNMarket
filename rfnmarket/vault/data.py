@@ -291,25 +291,25 @@ class Data():
             'dataFrames': {
                 'profile': {
                     'scrapes': {
-                        scrape.yahoo.TimeSeries: {
-                            # 'trailingBasicEPS': {
-                            #     'columnSets': [
-                            #         ['keySymbol', 'symbol', True, False, True, False],
-                            #     ],
-                            # },
-                            # 'annualBasicEPS': {
-                            #     'columnSets': [
-                            #         ['keySymbol', 'symbol', True, False, True, False],
-                            #     ],
-                            # },
-                            # 'quarterlyBasicEPS': {
-                            #     'columnSets': [
-                            #         ['keySymbol', 'symbol', True, False, True, False],
-                            #     ],
-                            # },
-                            'quarterlyStockholdersEquity': {
+                        # scrape.fmp.StockList: {
+                        #     'stocklist': {
+                        #         'columnSets': [
+                        #             ['keySymbol', 'symbol', True, False, True, False],
+                        #             ['exchangeShortName', 'acronym', False, False, False, False],
+                        #         ],
+                        #     },
+                        # },
+                        scrape.yahoo.QuoteSummary: {    # scrape class to retrieve data from
+                            'defaultKeyStatistics': {   # table name to be searched
                                 'columnSets': [
-                                    ['keySymbol', 'symbol', True, False, True, False],
+                                    ['keySymbol', 'symbol', True, True, True, False],
+                                    ['trailingEps', 'trailingEps', False, False, False, False],
+                                ],
+                            },
+                            'assetProfile': {   # table name to be searched
+                                'columnSets': [
+                                    ['keySymbol', 'symbol', True, True, True, False],
+                                    ['sectorKey', 'sector', False, False, False, False],
                                 ],
                             },
                         },
@@ -581,50 +581,50 @@ class Data():
                         },
                     },
                 },
-                'Chart': {
-                    'scrapes': {
-                        scrape.yahoo.Chart: {
-                            'all': {
-                                'columnSets': [
-                                    ['*', '', False, False, False, False],
-                                ],
-                            },
-                        },
-                    },
-                },
-                'StockList': {
-                    'scrapes': {
-                        scrape.fmp.StockList: {
-                            'all': {
-                                'columnSets': [
-                                    ['*', '', False, False, False, False],
-                                ],
-                            },
-                        },
-                    },
-                },
-                'Tickers': {
-                    'scrapes': {
-                        scrape.polygon.Tickers: {
-                            'all': {
-                                'columnSets': [
-                                    ['*', '', False, False, False, False],
-                                ],
-                            },
-                        },
-                    },
-                },
-                'Saved': {
-                    'scrapes': {
-                        scrape.saved.Saved: {
-                            'all': {
-                                'columnSets': [
-                                    ['*', '', False, False, False, False],
-                                ],
-                            },
-                        },
-                    },
-                },
+                # 'Chart': {
+                #     'scrapes': {
+                #         scrape.yahoo.Chart: {
+                #             'all': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'StockList': {
+                #     'scrapes': {
+                #         scrape.fmp.StockList: {
+                #             'all': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'Tickers': {
+                #     'scrapes': {
+                #         scrape.polygon.Tickers: {
+                #             'all': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'Saved': {
+                #     'scrapes': {
+                #         scrape.saved.Saved: {
+                #             'all': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
             },
         },
     }
