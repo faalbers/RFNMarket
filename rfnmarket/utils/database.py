@@ -41,6 +41,12 @@ class Database():
         self.connection.commit()
         log.info('Database: call commit: %s' % self.name)
     
+    def getTableNames(self):
+        cursor = self.connection.cursor()
+        names = [ x[0] for x in cursor.execute("SELECT name FROM sqlite_schema WHERE type='table'")]
+        cursor.close()
+        return names
+
     def tableExists(self, tableName):
         # check if table exists
         cursor = self.connection.cursor()

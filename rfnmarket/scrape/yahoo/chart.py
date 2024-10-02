@@ -13,7 +13,6 @@ class Chart(Base):
         return [tableName]
 
     def update(self, symbols, forceUpdate=False):
-        print(forceUpdate)
         symbolPeriod1 = {}
 
         # check last timestamp of symbols in quote database

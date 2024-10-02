@@ -12,8 +12,9 @@ class Base():
             return None
         return response
 
+    # upped period a bit from 60 because i was getting error You've exceeded the maximum requests per minute
     @sleep_and_retry
-    @limits(calls=5, period=60)
+    @limits(calls=5, period=70)
     def requestCallLimited(self, requestArgs):
         return self.requestCall(requestArgs)
 
