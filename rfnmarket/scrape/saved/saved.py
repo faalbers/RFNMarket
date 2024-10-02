@@ -24,31 +24,23 @@ class Saved():
 
     def readQuicken(self):
         # get status first
-        fileDates , dataNames = self.db.getRows('status_db', whereColumns=['rowid'], areValues=[1])
-        statusDates = {}
-        index = 0
-        for dataName in dataNames:
-            statusDates[dataName] = fileDates[0][index]
-            index += 1
+        statusDb = self.db.idxTableReadData('status_db')
 
         # find QIF files and parse them
         qifFiles = glob.glob(self.dataPath+'*.QIF')
-        paramsCreate = ["'timestamp' TIMESTAMP", "'security' TEXT", "'symbol' TEXT", "'type' TEXT", "'transaction' TEXT",
-            "'shares' FLOAT", "'price' FLOAT", "'costBasis' FLOAT", "'description' TEXT"]
         params = ['timestamp', 'security', 'symbol', 'type', 'transaction', 'shares', 'price', 'costBasis', 'description']
-        writeValues = []
+        connection = self.db.getConnection()
         for qifFile in qifFiles:
+            writeData = []
             fileDate = int(os.path.getmtime(qifFile))
             dataName = Path(qifFile).stem
             tableName = 'QUICKEN_'+dataName
 
             # only read data from newer files
-            if tableName in statusDates and fileDate <= statusDates[tableName]: continue
+            if tableName in statusDb and fileDate <= statusDb.loc['all', tableName]: continue
 
             log.info('Creating Quicken data: %s' % dataName)
             
-            self.db.dropTable(tableName)
-            self.db.createTable(tableName, paramsCreate)
             timestamp = None
             securities = {}
             lineBefore = ''
@@ -113,32 +105,22 @@ class Saved():
                                     values['costBasis'] = costBasis
                             lineBefore = line
                             line = f.readline()
-                        rowValues = []
-                        for param in params:
-                            rowValues.append(values[param])
-                        writeValues.append(tuple(rowValues))
+                        writeData.append(values)
 
                     lineBefore = line
                     line = f.readline()
-            # for rowValues in writeValues:
-            #     log.info(rowValues)
-            self.db.insertOrIgnore(tableName, params, writeValues)
-            
+            dfWrite = pd.DataFrame(writeData)
+            dfWrite.to_sql(tableName, con=connection, index=False, if_exists='replace')
+
             # update status
-            self.db.createTable('status_db', ["'%s' TIMESTAMP" % tableName])
-            self.db.addColumn('status_db', tableName, 'TIMESTAMP')
-            self.db.insertOrIgnore('status_db', ['rowid'], (1,))
-            self.db.update( 'status_db', 'rowid', 1, [tableName], (fileDate,) )
+            status = {tableName: fileDate}
+            self.db.idxTableWriteData(status, 'status_db', 'timestamps', 'all', 'update')
 
     def readCSV(self):
         cvsFiles = glob.glob(self.dataPath+'*.csv')
         # get status first
-        fileDates , dataNames = self.db.getRows('status_db', whereColumns=['rowid'], areValues=[1])
-        statusDates = {}
-        index = 0
-        for dataName in dataNames:
-            statusDates[dataName] = fileDates[0][index]
-            index += 1
+        statusDb = self.db.idxTableReadData('status_db')
+        
         # now lets retrieve the data if needed
         connection = self.db.getConnection()
         filesRead = 0
@@ -147,7 +129,7 @@ class Saved():
             dataName = Path(cvsFile).stem
             
             # only read data from newer files
-            if dataName in statusDates and fileDate <= statusDates[dataName]: continue
+            if dataName in statusDb and fileDate <= statusDb.loc['all', dataName]: continue
             
             log.info('Update saved: %s' % dataName)
 
@@ -157,10 +139,8 @@ class Saved():
             filesRead += 1
 
             # update status
-            self.db.createTable('status_db', ["'%s' TIMESTAMP" % dataName])
-            self.db.addColumn('status_db', dataName, 'TIMESTAMP')
-            self.db.insertOrIgnore('status_db', ['rowid'], (1,))
-            self.db.update( 'status_db', 'rowid', 1, [dataName], (fileDate,) )
+            status = {dataName: fileDate}
+            self.db.idxTableWriteData(status, 'status_db', 'timestamps', 'all', 'update')
 
         if filesRead > 0:
             log.info('CSV files read and updated: %s' % filesRead)

@@ -13,15 +13,25 @@ class Chart(Base):
         return [tableName]
 
     def update(self, symbols, forceUpdate=False):
+        print(forceUpdate)
+        symbolPeriod1 = {}
+
         # check last timestamp of symbols in quote database
         foundSymbolTimestamps = {}
-        if self.db.tableExists('status_db'):
-            dfStatus = pd.read_sql("SELECT * FROM 'status_db'", self.db.getConnection(), index_col='keySymbol')
-            for symbol in dfStatus.index:
-                foundSymbolTimestamps[symbol] = int(dfStatus.loc[symbol,'chart'])
+        dfStatus = self.db.idxTableReadData('status_db')
+        for symbol in dfStatus.index:
+            foundSymbolTimestamps[symbol] = int(dfStatus.loc[symbol,'chart'])
+
+        # force  chart read
+        if forceUpdate:
+            for symbol in symbols:
+                if symbol in foundSymbolTimestamps:
+                    symbolPeriod1[symbol] = foundSymbolTimestamps[symbol]
+                else:
+                    symbolPeriod1[symbol] = int(datetime.now().timestamp()) - int(60*60*24*365.2422*10)
+            return symbolPeriod1
         
         # set period1 for all symbol requests
-        symbolPeriod1 = {}
         now = datetime.now()
         # update period is 1 day
         updateTimestamp = int(now.timestamp()) - int(60*60*24)
@@ -47,7 +57,7 @@ class Chart(Base):
         self.db = database.Database(self.dbName)
 
         # lets see if we need an update
-        symbolPeriod1 = self.update(symbols, forceUpdate=False)
+        symbolPeriod1 = self.update(symbols, forceUpdate=forceUpdate)
 
         # guess there is nothing to update
         if len(symbolPeriod1) == 0: return
@@ -101,87 +111,59 @@ class Chart(Base):
                     # handle data return response
                     dfs = []
                     symbolData = symbolData['result'][0]
+                    dfChart = None
                     if 'timestamp' in symbolData:
                         timestamps = symbolData['timestamp']
                         if 'indicators' in symbolData:
                             # extract all the indicators
                             indicators = symbolData['indicators']
-                            dfIndicator = pd.DataFrame(indicators)
-                            quote = dfIndicator['quote'].get(0, None)
-                            adjclose = dfIndicator['adjclose'].get(0, None)
-                            dfQuote = pd.DataFrame(quote, index=timestamps)
-                            dfQuote['adjclose'] = adjclose['adjclose'].copy()
-                            dfQuote.rename_axis('date', inplace=True)
-                            dfs.append(dfQuote)
+                            mergedQuote = {**indicators['quote'][0], **indicators['adjclose'][0]}
+                            dfChart = pd.DataFrame(mergedQuote, index=timestamps)
+
                     if 'events' in symbolData:
                         # extract all the events
                         events = symbolData['events']
-                        dfEvents = pd.DataFrame(events)
-                        for column in dfEvents.columns:
-                            dfEvent = pd.DataFrame(list(dfEvents[column].dropna()))
+                        for event, eventData in events.items():
+                            dfEvent = pd.DataFrame(eventData).T
                             dfEvent.set_index('date', inplace=True)
                             rename = {}
-                            for eventColumn in dfEvent.columns:
-                                rename[eventColumn] = column+eventColumn.capitalize()
+                            for columnName in dfEvent.columns:
+                                rename[columnName] = event + columnName.capitalize()
                             dfEvent.rename(columns=rename, inplace=True)
-                            dfs.append(dfEvent)
-                    # merge all dataframes
-                    if len(dfs) == 0: return
-                    dfChart = dfs[0]
-                    for df in dfs[1:]:
-                        dfChart = pd.merge(dfChart, df, left_index=True, right_index=True, how='outer')
+                            dfChart = pd.merge(dfChart, dfEvent, left_index=True, right_index=True, how='outer')
 
-                    # create tablename with no illegal characters
-                    tableName = 'chart_'
-                    for c in symbol:
-                        if c.isalnum():
-                            tableName += c
-                        else:
-                            tableName += '_'
+                    if isinstance(dfChart, pd.DataFrame):
+                        # create tablename with no illegal characters
+                        tableName = 'chart_'
+                        for c in symbol:
+                            if c.isalnum():
+                                tableName += c
+                            else:
+                                tableName += '_'
+                        
+                        dfChart.rename_axis('timestamp', inplace=True)
 
-                    # add new found date to existing dfChart
-                    if self.db.tableExists(tableName):
-                        dfChartDB = pd.read_sql("SELECT * FROM '%s'" % tableName, self.db.getConnection(), index_col='date')
-                        # takes out the None values
-                        dfChartDB.fillna(value=np.nan, inplace=True)
-                        # remove rows with dates that are already in it
-                        dfChart = dfChart[~dfChart.index.isin(dfChartDB.index)]
-                        # concat new dates
-                        dfChart = pd.concat([dfChartDB, dfChart], )
-                    
-                    # write new table
-                    dtype = {'date': 'TIMESTAMP PRIMARY KEY'}
-                    dfChart.to_sql(tableName, self.db.getConnection(), if_exists='replace', dtype=dtype)
+                        # get current chart and find chart timestamps that need to be added
+                        dfChartDB = self.db.idxTableReadData(tableName)
+                        dfChart = dfChart[~dfChart.index.isin(dfChartDB.index)].dropna(axis=1, how='all')
 
-                    # update chart tablenames
-                    timeTableName = 'chart'
-                    if not self.db.tableExists(timeTableName):
-                        # create new on if it does not exist
-                        statusData = [{'keySymbol': symbol, 'tableName': tableName}]
-                        dfChartTables = pd.DataFrame(statusData)
-                        dfChartTables.set_index('keySymbol', inplace=True)
-                    else:
-                        # enter in existing status
-                        dfChartTables = pd.read_sql("SELECT * FROM '%s'" % timeTableName, self.db.getConnection(), index_col='keySymbol')
-                        dfChartTables.loc[symbol,'tableName'] = tableName
-                    dtype = {'keySymbol': 'STRING PRIMARY KEY'}
-                    dfChartTables.to_sql(timeTableName, self.db.getConnection(), if_exists='replace', dtype=dtype)
+                        lastTimeStamp = None
+                        if len(dfChart) > 0:
+                            if len(dfChartDB) > 0:
+                                dfChart = pd.concat([dfChartDB, dfChart])
+                            # replace chart
+                            dType = {'timestamp': 'INTEGER PRIMARY KEY'}
+                            dfChart.to_sql(tableName, self.db.getConnection(), if_exists='replace', index=True, dtype=dType)
+                            lastTimeStamp = int(dfChart.index[-1])
+                        elif len(dfChartDB) == 0:
+                            # if no prior entry and no current entry, just set last entry date to now
+                            lastTimeStamp = int(datetime.now().timestamp())
+                        
+                        # update chart tablenames
+                        if lastTimeStamp != None:
+                            self.db.idxTableWriteData({'chart': lastTimeStamp}, 'status_db', 'keySymbol', symbol, 'update')
                     
-                    
-                    # update status_db
-                    statusTableName = 'status_db'
-                    if not self.db.tableExists(statusTableName):
-                        # create new on if it does not exist
-                        statusData = [{'keySymbol': symbol, timeTableName: dfChart.index[-1]}]
-                        dfStatus = pd.DataFrame(statusData)
-                        dfStatus.set_index('keySymbol', inplace=True)
-                    else:
-                        # enter in existing status
-                        dfStatus = pd.read_sql("SELECT * FROM '%s'" % statusTableName, self.db.getConnection(), index_col='keySymbol')
-                        dfStatus.loc[symbol,timeTableName] = dfChart.index[-1]
-                    # dtype = {'keySymbol': 'STRING PRIMARY KEY'}
-                    dtype = {'keySymbol': 'STRING PRIMARY KEY', timeTableName: 'TIMESTAMP'}
-                    dfStatus.to_sql(statusTableName, self.db.getConnection(), if_exists='replace', dtype=dtype)
+
     
     def dbCommit(self):
         # call from base to commit

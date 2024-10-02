@@ -90,7 +90,7 @@ class Data():
                                     if not searchColumn in columns:
                                         columns[searchColumn] = []
                                     columns[searchColumn].append(columnSet[1:])
-                            dfSearch = db.getTable(tableName, columns=list(columns.keys()))
+                            dfSearch = db.getTable(tableName)[list(columns.keys())]
                             
                             # build table DataFrame
                             dfTable = pd.DataFrame(index=dfSearch.index)
@@ -152,22 +152,18 @@ class Data():
         investments = {}
         db = self.getScrapeDB(scrape.saved.Saved)
 
-        # find QUICKEN table
-        db.getTableNames()
-        tableNames = list(filter(lambda item: item.startswith('QUICKEN'), db.getTableNames()))
-        if len(tableNames) == 0: return investments
+        # get Quicken data
+        dfQuicken = db.getTable('QUICKEN_2020')
+        if len(dfQuicken) == 0: return investments
 
-        tableName = tableNames[0]
 
         # find all symbols
-        values, params = db.getRows(tableName, columns=['symbol'])
-        symbols = list(set([x[0] for x in values]))
+        symbols = list(dfQuicken['symbol'])
         symbols = list(filter(lambda item: not ' ' in item, symbols))
         symbols = set(symbols)
 
         # find ingoung params and outgoing params
-        values, params = db.getRows(tableName, columns=['transaction'])
-        transactionParams = list(set([x[0] for x in values]))
+        transactionParams = list(dfQuicken['transaction'])
         sharesInParams = set(list(filter(lambda item: item.startswith('Reinv'), transactionParams))+['Buy', 'ShrsIn'])
         sharesOutParams = set(['Sell', 'ShrsOut'])
 
@@ -178,17 +174,14 @@ class Data():
                 # add incoming shares and substract outgoing shares
                 shares = 0
                 for tParam in sharesInParams:
-                    values, params = db.getRows(tableName, columns=['shares'], whereColumns=['symbol', 'transaction'], areValues=[symbol, tParam])
-                    paramValues = [x[0] for x in values]
-                    paramValues = list(filter(lambda item: item is not None, paramValues))
-                    if len(paramValues) == 0: continue
-                    shares += sum(paramValues)
+                    # values, params = db.getRows(tableName, columns=['shares'], whereColumns=['symbol', 'transaction'], areValues=[symbol, tParam])
+                    foundData = dfQuicken[dfQuicken['symbol'] == symbol]
+                    foundData = foundData[foundData['transaction'] == tParam]
+                    shares += foundData['shares'].sum()
                 for tParam in sharesOutParams:
-                    values, params = db.getRows(tableName, columns=['shares'], whereColumns=['symbol', 'transaction'], areValues=[symbol, tParam])
-                    paramValues = [x[0] for x in values]
-                    paramValues = list(filter(lambda item: item is not None, paramValues))
-                    if len(paramValues) == 0: continue
-                    shares -= sum(paramValues)
+                    foundData = dfQuicken[dfQuicken['symbol'] == symbol]
+                    foundData = foundData[foundData['transaction'] == tParam]
+                    shares -= foundData['shares'].sum()
                 
                 # if we still have shares, we keep them
                 if shares > 0.001:
@@ -198,18 +191,9 @@ class Data():
 
         # get investment data of symbols
         for symbol in symbols:
-            investments[symbol] = {}
-            values, params = db.getRows(tableName, ['timestamp', 'transaction', 'shares', 'price', 'costBasis'],
-                whereColumns=['symbol'], areValues=[symbol])
-            
-            for value in values:
-                # skip the ones with no shares transaction
-                if value[2] == None: continue
-                data = investments[symbol][value[0]] = {}
-                index = 1
-                for param in params[1:]:
-                    data[param] = value[index]
-                    index += 1
+            foundData = dfQuicken[dfQuicken['symbol'] == symbol][['timestamp', 'transaction', 'shares', 'price', 'costBasis']]
+            foundData.set_index('timestamp', inplace=True)
+            investments[symbol] = foundData
         
         return investments
 
@@ -299,20 +283,44 @@ class Data():
                         #         ],
                         #     },
                         # },
-                        scrape.yahoo.QuoteSummary: {    # scrape class to retrieve data from
-                            'defaultKeyStatistics': {   # table name to be searched
+                        # scrape.polygon.Tickers: {
+                        #     'tickers': {
+                        #         'columnSets': [
+                        #             ['keySymbol', 'symbol', True, False, True, False],
+                        #             ['primary_exchange', 'mic', False, False, False, False],
+                        #         ],
+                        #     },
+                        # },
+                        # scrape.saved.Saved: {
+                        #     'ISO10383_MIC': {
+                        #         'columnSets': [
+                        #             ['MIC', 'mic', False, False, False, False],
+                        #             ['ACRONYM', 'acronym', False, False, False, False],
+                        #         ],
+                        #     },
+                        # },
+                        scrape.yahoo.Chart: {
+                            'chart': {
                                 'columnSets': [
                                     ['keySymbol', 'symbol', True, True, True, False],
-                                    ['trailingEps', 'trailingEps', False, False, False, False],
-                                ],
-                            },
-                            'assetProfile': {   # table name to be searched
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['sectorKey', 'sector', False, False, False, False],
+                                    ['tableName', 'tableName', False, False, False, False],
                                 ],
                             },
                         },
+                        # scrape.yahoo.QuoteSummary: {    # scrape class to retrieve data from
+                        #     'defaultKeyStatistics': {   # table name to be searched
+                        #         'columnSets': [
+                        #             ['keySymbol', 'symbol', True, True, True, False],
+                        #             ['trailingEps', 'trailingEps', False, False, False, False],
+                        #         ],
+                        #     },
+                        #     'assetProfile': {   # table name to be searched
+                        #         'columnSets': [
+                        #             ['keySymbol', 'symbol', True, True, True, False],
+                        #             ['sectorKey', 'sector', False, False, False, False],
+                        #         ],
+                        #     },
+                        # },
                     },
                 },
             },
@@ -444,7 +452,6 @@ class Data():
                             'price': {
                                 'columnSets': [
                                     ['keySymbol', 'symbol', True, True, True, False],
-                                    ['timestamp', 'timestamp', False, False, False, True],
                                     ['regularMarketPrice', 'price', False, False, False, False],
                                     ['regularMarketOpen', 'open', False, False, False, False],
                                     ['regularMarketDayHigh', 'dayHigh', False, False, False, False],
@@ -570,17 +577,17 @@ class Data():
         'all': {
             'info': 'all avalable database data',
             'dataFrames': {
-                'QuoteSummary': {
-                    'scrapes': {
-                        scrape.yahoo.QuoteSummary: {
-                            'all': {
-                                'columnSets': [
-                                    ['*', '', False, False, False, False],
-                                ],
-                            },
-                        },
-                    },
-                },
+                # 'QuoteSummary': {
+                #     'scrapes': {
+                #         scrape.yahoo.QuoteSummary: {
+                #             'all': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
                 # 'Chart': {
                 #     'scrapes': {
                 #         scrape.yahoo.Chart: {
