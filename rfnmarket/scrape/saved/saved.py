@@ -114,7 +114,7 @@ class Saved():
 
             # update status
             status = {tableName: fileDate}
-            self.db.idxTableWriteData(status, 'status_db', 'timestamps', 'all', 'update')
+            self.db.idxTableWriteRow(status, 'status_db', 'timestamps', 'all', 'update')
 
     def readCSV(self):
         cvsFiles = glob.glob(self.dataPath+'*.csv')
@@ -140,7 +140,7 @@ class Saved():
 
             # update status
             status = {dataName: fileDate}
-            self.db.idxTableWriteData(status, 'status_db', 'timestamps', 'all', 'update')
+            self.db.idxTableWriteRow(status, 'status_db', 'timestamps', 'all', 'update')
 
         if filesRead > 0:
             log.info('CSV files read and updated: %s' % filesRead)

@@ -52,5 +52,5 @@ class StockList(Base):
             pdData.to_sql('stocklist', self.db.getConnection(), index=True, if_exists='replace', dtype=dtype)
             
             status = {'stocklist': int(datetime.now().timestamp())}
-            self.db.idxTableWriteData(status, 'status_db', 'timestamps', 'all', 'update')
+            self.db.idxTableWriteRow(status, 'status_db', 'timestamps', 'all', 'update')
     

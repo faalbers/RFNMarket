@@ -124,6 +124,8 @@ class Chart(Base):
                         events = symbolData['events']
                         for event, eventData in events.items():
                             dfEvent = pd.DataFrame(eventData).T
+                            # for some reason it makes it float64 even though originally data is int
+                            dfEvent['date'] = dfEvent['date'].astype('int64')
                             dfEvent.set_index('date', inplace=True)
                             rename = {}
                             for columnName in dfEvent.columns:
@@ -139,31 +141,20 @@ class Chart(Base):
                                 tableName += c
                             else:
                                 tableName += '_'
-                        
                         dfChart.rename_axis('timestamp', inplace=True)
-
-                        # get current chart and find chart timestamps that need to be added
-                        dfChartDB = self.db.idxTableReadData(tableName)
-                        dfChart = dfChart[~dfChart.index.isin(dfChartDB.index)].dropna(axis=1, how='all')
-
-                        lastTimeStamp = None
                         if len(dfChart) > 0:
-                            if len(dfChartDB) > 0:
-                                dfChart = pd.concat([dfChartDB, dfChart])
-                            # replace chart
-                            dType = {'timestamp': 'INTEGER PRIMARY KEY'}
-                            dfChart.to_sql(tableName, self.db.getConnection(), if_exists='replace', index=True, dtype=dType)
+                            # append table
+                            self.db.idxTableWriteTable(dfChart, tableName, method='append')
                             lastTimeStamp = int(dfChart.index[-1])
-                        elif len(dfChartDB) == 0:
-                            # if no prior entry and no current entry, just set last entry date to now
-                            lastTimeStamp = int(datetime.now().timestamp())
-                        
-                        # update chart tablenames
-                        if lastTimeStamp != None:
-                            self.db.idxTableWriteData({'chart': lastTimeStamp}, 'status_db', 'keySymbol', symbol, 'update')
-                    
 
-    
+                            # add tableName to chart table for symbol
+                            self.db.idxTableWriteRow({'tableName': tableName}, 'chart', 'keySymbol', symbol, 'update')
+                        else:
+                            lastTimeStamp = int(datetime.now().timestamp())
+
+                        # update status
+                        self.db.idxTableWriteRow({'chart': lastTimeStamp}, 'status_db', 'keySymbol', symbol, 'update')
+                          
     def dbCommit(self):
         # call from base to commit
         self.db.commit()

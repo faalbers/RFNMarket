@@ -15,6 +15,15 @@ class Database():
         dict: 'JSON',
         list: 'JSON',
     }
+    __sqlDataTypesPD = {
+        np.int64:  'INTEGER',
+        np.float64:  'REAL',
+        float:  'REAL',
+        bool:  'BOOLEAN',
+        str: 'TEXT',
+        dict: 'JSON',
+        list: 'JSON',
+    }
     def __init__(self, name):
         self.name = name
         self.connection = sqlite3.connect('database/%s.db' % name)
@@ -60,13 +69,10 @@ class Database():
         return pd.read_sql("SELECT * FROM '%s'" % tableName, self.connection)
 
     def idxTableGetKeys(self, tableName):
-        cursor = self.connection.cursor()
         # check if table exists
-        foundTable = cursor.execute("SELECT name FROM sqlite_schema WHERE type='table' AND name='%s'" % tableName).fetchone()
-        if foundTable == None:
-            cursor.close()
-            return []
+        if not self.tableExists(tableName): return []
         
+        cursor = self.connection.cursor()
         # find keys column and column types
         tableColumns = cursor.execute("PRAGMA table_info(%s)" % tableName).fetchall()
         keyName = None
@@ -91,11 +97,10 @@ class Database():
         elif dataType == 'dataframe':
             data = {}
 
+        # return emty data if table does not exist
+        if not self.tableExists(tableName): return data
+        
         cursor = self.connection.cursor()
-        foundTable = cursor.execute("SELECT name FROM sqlite_schema WHERE type='table' AND name='%s'" % tableName).fetchone()
-        if foundTable == None:
-            cursor.close()
-            return data
         
         # find keys column and column types
         tableColumns = cursor.execute("PRAGMA table_info(%s)" % tableName).fetchall()
@@ -139,14 +144,88 @@ class Database():
                 data[key] = rowData
             if dataType == 'dataframe':
                 dataRows.append(rowData)
-        
+
         if dataType == 'dataframe':
             data = pd.DataFrame(dataRows)
-            data.set_index(keyName, inplace=True)
+            if len(data) != 0:
+                data.set_index(keyName, inplace=True)
 
         return data
 
-    def idxTableWriteData(self, data, tableName, keyName, keyValue, method):
+    def idxTableWriteTable(self, data, tableName, keyName=None, method='append'):
+        # methodes are update, append, replace
+
+        sqlDTypes = {}
+        # get sql types for columns
+        if isinstance(data, list):
+            if keyName == None:
+                raise ValueError('idxTableWriteTable: keyName not entered with dict data')
+            # handle 
+            for row in data:
+                for columnName, value in row.items():
+                    sqlDTypes[columnName] = self.__sqlDataTypes[type(value)]
+            keySqlDType = sqlDTypes.pop(keyName)
+            data = pd.DataFrame(data)
+            data.set_index(keyName, inplace=True)
+        elif isinstance(data, pd.DataFrame):
+            keyName = data.index.name
+            keySqlDType = self.__sqlDataTypesPD[data.index.dtype.type]
+            for columnName in data.columns:
+                cType = data[columnName].dtype.type
+                if cType == np.object_:
+                    colCheck = data[columnName].dropna()
+                    if len(colCheck) == 0: continue
+                    cType = type(colCheck.iloc[0])
+                sqlDTypes[columnName] = self.__sqlDataTypesPD[cType]
+
+        else:
+            raise TypeError('idxTableWriteTable: wrong data type: %s' % type(data))
+
+        # prepare data frame
+        for columnName, sqlType in sqlDTypes.items():
+            if sqlType == 'JSON':
+                # chamge column into JSON string if needed
+                data[columnName] = data[columnName].apply(json.dumps)
+               
+        cursor = self.connection.cursor()
+        
+        # drop table first if we need replace
+        if method == 'replace' and self.tableExists(tableName):
+            cursor.execute("DROP TABLE '%s'" % tableName)
+
+        # only create table if not exist, add primary key column
+        cursor.execute("CREATE TABLE IF NOT EXISTS %s  ([%s] %s PRIMARY KEY)" % (tableName, keyName, keySqlDType))
+
+        # table columns status as we build
+        tableColumns = cursor.execute("PRAGMA table_info(%s)" % tableName).fetchall()
+        tableColumns = set([x[1] for x in tableColumns])
+
+        # add table columns if neeed
+        addTableColumns = set(sqlDTypes.keys()).difference(tableColumns)
+        for columnName in addTableColumns:
+            cursor.execute("ALTER TABLE %s ADD COLUMN [%s] %s" % (tableName, columnName, sqlDTypes[columnName]))
+            # add column name to the table column status
+            tableColumns.add(columnName)
+
+        # apply method to dataframe
+        if method in ['append', 'update']:
+            dfTableDB = self.idxTableReadData(tableName)
+            if len(dfTableDB) == 0:
+                data.to_sql(tableName, self.connection, if_exists='append', index=True)
+            elif method == 'append':
+                data = data[~data.index.isin(dfTableDB.index)]
+                if len(data) > 0:
+                    data.to_sql(tableName, self.connection, if_exists='append', index=True)
+            elif method == 'update':
+                # not impleneted yet
+                pass
+        elif method == 'replace':
+            data.to_sql(tableName, self.connection, if_exists='append', index=True)
+
+        cursor.close()
+
+    def idxTableWriteRow(self, data, tableName, keyName, keyValue, method='update'):
+        # data is only dict for now
         cursor = self.connection.cursor()
 
         # get key info

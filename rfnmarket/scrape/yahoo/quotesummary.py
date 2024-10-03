@@ -50,8 +50,6 @@ class QuoteSummary(Base):
         now = datetime.now()
         if self.db.tableExists(status):
             dfStatus = pd.read_sql("SELECT * FROM '%s'" % status, self.db.getConnection(), index_col='keySymbol')
-        # print(dfStatus.loc['ABR-PD', 'price'])
-        # print(type(dfStatus.loc['ABR-PD', 'price']))
         
         # check all requested symbols
         symbolModules = {}
@@ -133,13 +131,13 @@ class QuoteSummary(Base):
                     symbolData = symbolData['result'][0]
                     modulesStart = datetime.now()
                     for module, moduleData in symbolData.items():
-                        self.db.idxTableWriteData(moduleData, module, 'keySymbol', symbol, 'update')
+                        self.db.idxTableWriteRow(moduleData, module, 'keySymbol', symbol, 'update')
 
         # update status
         status = {}
         for module in self.symbolModules[symbol]:
             status[module] = int(datetime.now().timestamp())
-        self.db.idxTableWriteData(status, 'status_db', 'keySymbol', symbol, 'update')
+        self.db.idxTableWriteRow(status, 'status_db', 'keySymbol', symbol, 'update')
     
     def dbCommit(self):
         # call from base to commit

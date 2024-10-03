@@ -42,7 +42,7 @@ class Tickers(Base):
                 pdData.to_sql('types', self.db.getConnection(), index=True, if_exists='replace', dtype=dtype)
                 
                 status = {'types': int(datetime.now().timestamp())}
-                self.db.idxTableWriteData(status, 'status_db', 'timestamps', 'all', 'update')
+                self.db.idxTableWriteRow(status, 'status_db', 'timestamps', 'all', 'update')
 
         lastUpdateTime = updateTime
         if len(statusDb) > 0: lastUpdateTime = statusDb.loc['all', 'tickers']
@@ -76,7 +76,7 @@ class Tickers(Base):
                             if '.' in lastUpdateUtc: timeformat = '%Y-%m-%dT%H:%M:%S.%fZ'
                             timestamp = int(datetime.strptime(lastUpdateUtc, timeformat) .timestamp())
                         ticker['timestamp'] = timestamp
-                        self.db.idxTableWriteData(ticker, 'tickers', 'keySymbol', symbol, 'update')
+                        self.db.idxTableWriteRow(ticker, 'tickers', 'keySymbol', symbol, 'update')
                     tickerCount += responseData['count']
                     self.db.commit()
                     log.info('Stocks found so far: %s' % tickerCount)
@@ -87,5 +87,5 @@ class Tickers(Base):
                     nextRequestArgs = None
             
             status = {'tickers': int(datetime.now().timestamp())}
-            self.db.idxTableWriteData(status, 'status_db', 'timestamps', 'all', 'update')
+            self.db.idxTableWriteRow(status, 'status_db', 'timestamps', 'all', 'update')
 

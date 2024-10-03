@@ -8,6 +8,12 @@ import pandas as pd
 class TimeSeries(Base):
     dbName = 'yahoo_timeseries'
 
+    @staticmethod
+    def getTableNames(tableName):
+        if tableName == 'test':
+            return  ['quarterlyNormalizedEBITDA']
+        return [tableName]
+
     def setUpdatePeriods(self):
         mult = 1
         # we use a default of a bit more then 3 months to make sure we get latest quarterly
@@ -95,6 +101,7 @@ class TimeSeries(Base):
         # update if needed 
         # modules not used , might as well remove it, it's always empty
         symbolSettings = self.getSymbolSettings(symbols, tables, forceUpdate=forceUpdate)
+        print(symbolSettings)
 
         # dont'run  update if no symbols
         if len(symbolSettings) == 0: return
@@ -165,27 +172,30 @@ class TimeSeries(Base):
         if response.headers.get('content-type').startswith('application/json'):
             symbolData = response.json()
             for typeData in symbolData['timeseries']['result']:
-                type = typeData['meta']['type'][0]
-                if not type in typeData: continue
+                tsType = typeData['meta']['type'][0]
+                if not tsType in typeData: continue
 
                 # get entry dataFrame
-                entry = pd.DataFrame(typeData[type])
-                entry.insert(0, 'timestamp', typeData['timestamp'])
-                # entry['date'] = pd.to_datetime(entry['date'], unit='s')
-                entry['reportedValue'] = entry['reportedValue'].apply(json.dumps)
-                dtype = {
-                    'timestamp': 'TIMESTAMP PRIMARY KEY',
-                    'reportedValue': 'JSON',
-                }
+                self.db.idxTableWriteTable(typeData[tsType], tsType, 'asOfDate', method='append')
 
-                if not self.db.tableExists(type):
-                    # table does not exist, create new one
-                    entry.to_sql(type, self.db.getConnection(), if_exists='replace', index=False, dtype=dtype)
-                else:
-                    # it exists, filter out already existing timestamps. Then append
-                    foundDates = self.db.getColumn(type, 'timestamp')
-                    entry = entry[~entry['timestamp'].isin(foundDates)]
-                    entry.to_sql(type, self.db.getConnection(), if_exists='append', index=False, dtype=dtype)
+                # entry = pd.DataFrame(typeData[tsType])
+                # print(entry)
+                # entry.insert(0, 'timestamp', typeData['timestamp'])
+                # # entry['date'] = pd.to_datetime(entry['date'], unit='s')
+                # entry['reportedValue'] = entry['reportedValue'].apply(json.dumps)
+                # dtype = {
+                #     'timestamp': 'TIMESTAMP PRIMARY KEY',
+                #     'reportedValue': 'JSON',
+                # }
+
+                # if not self.db.tableExists(type):
+                #     # table does not exist, create new one
+                #     entry.to_sql(type, self.db.getConnection(), if_exists='replace', index=False, dtype=dtype)
+                # else:
+                #     # it exists, filter out already existing timestamps. Then append
+                #     foundDates = self.db.getColumn(type, 'timestamp')
+                #     entry = entry[~entry['timestamp'].isin(foundDates)]
+                #     entry.to_sql(type, self.db.getConnection(), if_exists='append', index=False, dtype=dtype)
 
             
 

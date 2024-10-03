@@ -450,7 +450,7 @@ class Database():
             self.idxTableClearRow(tableName, indexName, index)
         self.updateRow(tableName, updateColumns, updateValues, whereColumns=[indexName], areValues=[index])
 
-    def idxTableWriteData(self, data, tableName, keyName, keyValue, method):
+    def idxTableWriteRow(self, data, tableName, keyName, keyValue, method):
         cursor = self.connection.cursor()
 
         # get key info
@@ -511,7 +511,7 @@ class Database():
 
         cursor.close()
 
-    def idxTableWriteDataOld(self, data, tableName, indexLabel, indexLabelNew=None, method='append'):
+    def idxTableWriteRowOld(self, data, tableName, indexLabel, indexLabelNew=None, method='append'):
         # methodes are 'append', 'update', 'replace'
 
         columnTypes = {}
