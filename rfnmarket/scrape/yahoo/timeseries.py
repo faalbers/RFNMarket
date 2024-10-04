@@ -4,14 +4,21 @@ from pprint import pp
 from datetime import datetime
 import json
 import pandas as pd
+from . import const
 
 class TimeSeries(Base):
     dbName = 'yahoo_timeseries'
 
     @staticmethod
     def getTableNames(tableName):
-        if tableName == 'test':
-            return  ['quarterlyNormalizedEBITDA']
+        if tableName.startswith('all_'):
+            tnSplits = tableName.split('_')
+            period = tnSplits[1]
+            category = tnSplits[2]
+            if not period in const.FUNDAMENTALS_PERIODTYPES: return []
+            if not category in const.FUNDAMENTALS_KEYS: return []
+            tableNames = [(period+x) for x in const.FUNDAMENTALS_KEYS[category]]
+            return tableNames
         return [tableName]
 
     def setUpdatePeriods(self):
@@ -23,6 +30,13 @@ class TimeSeries(Base):
 
     def getSymbolSettings(self, symbols, tables, forceUpdate):
         symbolSettings = {}
+
+        tables = set(tables)
+
+        print('TimeSeries:')
+        print(tables)
+
+        return symbolSettings
 
         for symbol in symbols:
             symbolSettings[symbol] = {

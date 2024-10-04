@@ -39,11 +39,6 @@ class QuoteSummary(Base):
         modules = set(tables)
         moduleUpdatePeriods = self.getModuleUpdatePeriods(forceUpdate)
 
-        # symbolModules = {}
-        # for symbol in symbols:
-        #     symbolModules[symbol] = modules
-        # return symbolModules
-
         # get status
         status = 'status_db'
         dfStatus = None

@@ -148,7 +148,7 @@ class Chart(Base):
                             lastTimeStamp = int(dfChart.index[-1])
 
                             # add tableName to chart table for symbol
-                            self.db.idxTableWriteRow({'tableName': tableName}, 'chart', 'keySymbol', symbol, 'update')
+                            self.db.idxTableWriteRow({'chart': tableName}, 'table_reference', 'keySymbol', symbol, 'update')
                         else:
                             lastTimeStamp = int(datetime.now().timestamp())
 

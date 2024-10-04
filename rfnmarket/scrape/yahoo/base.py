@@ -36,7 +36,10 @@ class Base():
         if response != None:
             status_code = response.status_code
             if response.status_code == 200 and response.headers.get('content-type').startswith('application/json'):
-                return len(response.json()['chart']['result'][0]['events']['dividends'])
+                response = response.json()
+                dividends = response['chart']['result'][0]['events']['dividends']
+                log.debug('last test date: %s' %  (datetime.fromtimestamp(int(list(dividends.keys())[-1]))) )
+                return len(dividends)
         log.debug('test did not return valid value')
         return None
 

@@ -23,7 +23,50 @@ class Data():
         for scrapeClass in scrapeClasses:
             self.closeScrapeDB(scrapeClass)
 
+    # 'info': 'all avalable database data',
+    # 'dataFrames': {
+    #     'FinancialsA': {
+    #         'scrapes': {
+    #             scrape.yahoo.TimeSeries: {
+    #                 'all_quarterly_financials': {
+    #                     'columnSets': [
+    #                         ['*', '', False, False, False, False],
+    #                     ],
+    #                 },
+    #             },
+    #         },
+    #     },
+    #     'FinancialsB': {
+    #         'scrapes': {
+    #             scrape.yahoo.TimeSeries: {
+    #                 'all_annual_financials': {
+    #                     'columnSets': [
+    #                         ['*', '', False, False, False, False],
+    #                     ],
+    #                 },
+    #             },
+    #         },
+    #     },
+    # }
+
     def updateData(self, catalogs=[], symbols=[], forceUpdate=False):
+        # gather scrape classes and needed tables
+        scrapeClasses = []
+        for catalog in catalogs:
+            if catalog in self.__catalog:
+                for dataFrame, dfData in self.__catalog[catalog]['dataFrames'].items():
+                    for scrapeClass, scrapeData in dfData['scrapes'].items():
+                        scrapeClasses.append((scrapeClass, list(scrapeData.keys())))
+        
+        for ssData in scrapeClasses:
+            scraperClass = ssData[0]
+            tableNames = []
+            for tableName in ssData[1]:
+                tableNames += scrapeClass.getTableNames(tableName)
+            tableNames = list(set(tableNames))
+            scraperClass(symbols, tables=tableNames, forceUpdate=forceUpdate)
+    
+    def updateDataOld(self, catalogs=[], symbols=[], forceUpdate=False):
         # gather scrape classes and needed tables
         scrapeClasses = {}
         for catalog in catalogs:
@@ -556,17 +599,44 @@ class Data():
         'all': {
             'info': 'all avalable database data',
             'dataFrames': {
-                'QuoteSummary': {
-                    'scrapes': {
-                        scrape.yahoo.QuoteSummary: {
-                            'all': {
-                                'columnSets': [
-                                    ['*', '', False, False, False, False],
-                                ],
-                            },
-                        },
-                    },
-                },
+                # 'FinancialsA': {
+                #     'scrapes': {
+                #         scrape.yahoo.TimeSeries: {
+                #             'all_quarterly_financials': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #             'trailingPegRatio': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'FinancialsB': {
+                #     'scrapes': {
+                #         scrape.yahoo.TimeSeries: {
+                #             'all_annual_financials': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'QuoteSummary': {
+                #     'scrapes': {
+                #         scrape.yahoo.QuoteSummary: {
+                #             'all': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
                 'Chart': {
                     'scrapes': {
                         scrape.yahoo.Chart: {

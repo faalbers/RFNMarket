@@ -45,24 +45,74 @@ class Database():
     
     def getCursor(self):
         return self.connection.cursor()
-    
+
     def commit(self):
         self.connection.commit()
         log.info('Database: call commit: %s' % self.name)
-    
+       
     def getTableNames(self):
         cursor = self.connection.cursor()
         names = [ x[0] for x in cursor.execute("SELECT name FROM sqlite_schema WHERE type='table'")]
         cursor.close()
         return names
+    
+    def getTableInfo(self, tableName):
+        if not self.tableExists(tableName): return None
+
+        tableInfo = {
+            'columns': [],
+            'primaryKeyColumns': [],
+            'columnTypes': {},
+            'rows': 0,
+            'sql': '',
+        }
+
+        cursor = self.connection.cursor()
+        tableColumns = cursor.execute("PRAGMA table_info(%s)" % tableName).fetchall()
+        rowCount = cursor.execute("SELECT COUNT(*) FROM %s" % tableName).fetchone()
+        sql = cursor.execute("SELECT sql FROM sqlite_schema WHERE type='table' AND name='%s'" % tableName).fetchone()
+        cursor.close()
+
+        for tableColumn in tableColumns:
+            # print(tableColumn)
+            tableInfo['columns'].append(tableColumn[1])
+            if tableColumn[5]: tableInfo['primaryKeyColumns'].append(tableColumn[1])
+            tableInfo['columnTypes'][tableColumn[1]] = tableColumn[2]
+        tableInfo['sql'] = sql[0]
+        tableInfo['rows'] = rowCount[0]
+
+        return tableInfo
+
+    def tableRename(self, tableName, newTableName):
+        if not self.tableExists(tableName): return
+        cursor = self.connection.cursor()
+        cursor.execute("ALTER TABLE '%s' RENAME TO '%s'" % (tableName, newTableName))
+        cursor.close()
+    
+    def tableColumnRename(self, tableName, columnName, newColumnName):
+        if not self.tableColumnExists(tableName, columnName): return
+        cursor = self.connection.cursor()
+        cursor.execute("ALTER TABLE '%s' RENAME COLUMN [%s] TO '%s'" % (tableName, columnName, newColumnName))
+        cursor.close()
+    
+    def tableColumnDrop(self, tableName, columnName):
+        if not self.tableColumnExists(tableName, columnName): return
+        cursor = self.connection.cursor()
+        cursor.execute("ALTER TABLE '%s' DROP COLUMN [%s]" % (tableName, columnName))
+        cursor.close()
 
     def tableExists(self, tableName):
-        # check if table exists
+        return tableName in self.getTableNames()
+    
+    def getTableColumnNames(self, tableName):
+        if not self.tableExists(tableName): return []
         cursor = self.connection.cursor()
-        foundTable = cursor.execute("SELECT name FROM sqlite_schema WHERE type='table' AND name='%s'" % tableName).fetchone()
+        tableInfo = cursor.execute("PRAGMA table_info(%s)" % tableName).fetchall()
         cursor.close()
-        if foundTable == None: return False
-        return True
+        return [x[1] for x in tableInfo]
+
+    def tableColumnExists(self, tableName, columnName):
+        return columnName in self.getTableColumnNames(tableName)
 
     def getTable(self, tableName):
         if not self.tableExists(tableName): return pd.DataFrame()

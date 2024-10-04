@@ -1,0 +1,34 @@
+DataBase structure
+
+SQL database:
+
+Tables:
+
+    'status_db':
+    These tables have a primary key column (unique values) and INT typed columns named after other existing tables,
+    The rows contain the key value (mostly ticker symbol) and last updated time stamp for each named table column
+    example:
+    keySymbol STRING PRIMARY KEY, {name of table} INTEGER, {name of table} INTEGER, ...
+    'VITAX', 172778940, 1696339800, ...
+
+    'table_reference':
+    These tables have a primary key column (unique values) and multiple TEXT typed columns named tableName,
+    The rows contain the key value (mostly ticker symbol) and last updated time stamp for each named table column
+    example:
+    keySymbol STRING PRIMARY KEY, {table group name} STRING, {table group name} STRING, ...
+    'VITAX', 'chart_VITAX', 'earnings_VITAX', ...
+
+    data tables:
+    these tables have a primary key column (unique values) and columns with named parameters and appropriate typed.
+    The rows contain the key value (mostly ticker symbol, but also timestamps for time series) and values of the named parameters
+    example:
+    keySymbol STRING PRIMARY KEY, price REAL, EBITDA REAL, volume INTEGER, holders JSON, ...
+    'VITAX', 234.56, 0.5, 1265434, '{....}'
+
+    timestamp INTEGER PRIMARY KEY, price REAL, open REAL, volume INTEGER, ...
+    172778940, 234.56, 0.5, 1265434
+
+
+
+
+
