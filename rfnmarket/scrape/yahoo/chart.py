@@ -15,17 +15,20 @@ class Chart(Base):
     def update(self, symbols, forceUpdate=False):
         symbolPeriod1 = {}
 
+        now = datetime.now()
+        # for symbol in symbols:
+        #     symbolPeriod1[symbol] = int(now.timestamp()) - int(60*60*24*365.2422*10)
+        
         # check last timestamp of symbols in quote database
         foundSymbolTimestamps = {}
-        dfStatus = self.db.idxTableReadData('status_db')
-        for symbol in dfStatus.index:
-            foundSymbolTimestamps[symbol] = int(dfStatus.loc[symbol,'chart'])
+        status = 'status_db'
+        dfStatus = self.db.tableRead(status, keyValues=symbols)
 
         # force  chart read
         if forceUpdate:
             for symbol in symbols:
-                if symbol in foundSymbolTimestamps:
-                    symbolPeriod1[symbol] = foundSymbolTimestamps[symbol]
+                if symbol in dfStatus:
+                    symbolPeriod1[symbol] = dfStatus[symbol]['chart']
                 else:
                     symbolPeriod1[symbol] = int(datetime.now().timestamp()) - int(60*60*24*365.2422*10)
             return symbolPeriod1
@@ -35,17 +38,17 @@ class Chart(Base):
         # update period is 1 day
         updateTimestamp = int(now.timestamp()) - int(60*60*24)
         for symbol in symbols:
-            if symbol in foundSymbolTimestamps:
+            if symbol in dfStatus:
                 # if needed update add symbol with last timestamp
-                if updateTimestamp >= foundSymbolTimestamps[symbol]:
-                    symbolPeriod1[symbol] = foundSymbolTimestamps[symbol]
+                if updateTimestamp >= dfStatus[symbol]['chart']:
+                    symbolPeriod1[symbol] = dfStatus[symbol]['chart']
             else:
                 # add symbol with period1 of 10 years
                 symbolPeriod1[symbol] = int(now.timestamp()) - int(60*60*24*365.2422*10)
 
-        for symbol in set(symbols).intersection(foundSymbolTimestamps.keys()):
-            if updateTimestamp >= foundSymbolTimestamps[symbol]:
-                symbolPeriod1[symbol] = foundSymbolTimestamps[symbol]
+        for symbol in set(symbols).intersection(dfStatus.keys()):
+            if updateTimestamp >= dfStatus[symbol]['chart']:
+                symbolPeriod1[symbol] = dfStatus[symbol]['chart']
 
         return symbolPeriod1
 
@@ -74,9 +77,6 @@ class Chart(Base):
             if period1 < lowestTimestamp:
                 lowestTimestamp = period1
             period2 = int(datetime.now().timestamp())
-            # print('symbol : %s' % symbol)
-            # print('period1: %s' % period1)
-            # print('period2: %s' % period2)
             requestArgs = {
                 'url': 'https://query2.finance.yahoo.com/v8/finance/chart/'+symbol.upper(),
                 'params': {
@@ -89,7 +89,7 @@ class Chart(Base):
             }                      
             requestArgsList.append(requestArgs)
             self.symbols.append(symbol)
-        log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(lowestTimestamp)))
+        log.info('last time updated   : %s' % datetime.fromtimestamp(lowestTimestamp))
 
         self.start = datetime.now()
         self.multiRequest(requestArgsList, blockSize=50)
@@ -110,50 +110,61 @@ class Chart(Base):
                     # handle data return response
                     dfs = []
                     symbolData = symbolData['result'][0]
-                    dfChart = None
+                    chartData = {}
                     if 'timestamp' in symbolData:
                         timestamps = symbolData['timestamp']
                         if 'indicators' in symbolData:
                             # extract all the indicators
                             indicators = symbolData['indicators']
                             mergedQuote = {**indicators['quote'][0], **indicators['adjclose'][0]}
-                            dfChart = pd.DataFrame(mergedQuote, index=timestamps)
+                            tsIndex = 0
+                            for timestamp in timestamps:
+                                chartData[timestamp] = {}
+                                for param in mergedQuote.keys():
+                                    chartData[timestamp][param] = mergedQuote[param][tsIndex]
+                                tsIndex += 1
 
                     if 'events' in symbolData:
                         # extract all the events
                         events = symbolData['events']
                         for event, eventData in events.items():
-                            dfEvent = pd.DataFrame(eventData).T
-                            # for some reason it makes it float64 even though originally data is int
-                            dfEvent['date'] = dfEvent['date'].astype('int64')
-                            dfEvent.set_index('date', inplace=True)
-                            rename = {}
-                            for columnName in dfEvent.columns:
-                                rename[columnName] = event + columnName.capitalize()
-                            dfEvent.rename(columns=rename, inplace=True)
-                            dfChart = pd.merge(dfChart, dfEvent, left_index=True, right_index=True, how='outer')
-
-                    if isinstance(dfChart, pd.DataFrame):
-                        # create tablename with no illegal characters
-                        tableName = 'chart_'
-                        for c in symbol:
-                            if c.isalnum():
-                                tableName += c
-                            else:
-                                tableName += '_'
-                        dfChart.rename_axis('timestamp', inplace=True)
-                        if len(dfChart) > 0:
-                            # append table
-                            self.db.idxTableWriteTable(dfChart, tableName, method='append')
-                            lastTimeStamp = int(dfChart.index[-1])
-
-                            # add tableName to chart table for symbol
-                            self.db.idxTableWriteRow({'chart': tableName}, 'table_reference', 'keySymbol', symbol, 'update')
+                            for date, dateData in eventData.items():
+                                if not dateData['date'] in chartData:
+                                    chartData[dateData['date']] = {}
+                                chartRow = chartData[dateData['date']]
+                                if event == 'dividends':
+                                    chartRow['dividend'] = dateData['amount']
+                                elif event == 'capitalGains':
+                                    chartRow['capitalGain'] = dateData['amount']
+                                elif event == 'splits':
+                                    chartRow['numerator'] = dateData['numerator']
+                                    chartRow['denominator'] = dateData['denominator']
+                                    chartRow['splitRatio'] = dateData['splitRatio']
+                    
+                    # make unique table name
+                    tableName = 'chart_'
+                    for c in symbol:
+                        if c.isalnum():
+                            tableName += c
                         else:
-                            lastTimeStamp = int(datetime.now().timestamp())
+                            tableName += '_'
 
-                        # update status
-                        self.db.idxTableWriteRow({'chart': lastTimeStamp}, 'status_db', 'keySymbol', symbol, 'update')
+                    # write data 
+                    if len(chartData) > 0:
+                        self.db.tableWrite(tableName, chartData, 'timestamp', method='append')
+
+                        # write table reference
+                        self.db.tableWrite('table_reference', {symbol: {'chart': tableName}}, 'keySymbol', method='append')
+                        
+                        # get last iimestamp from chart
+                        lastTimeStamp = max(list(chartData.keys()))
+                    else:
+                        # get now timestamp to show we tried
+                        lastTimeStamp = int(datetime.now().timestamp())
+
+                    # update status
+                    self.db.tableWrite('status_db', {symbol: {'chart': lastTimeStamp}}, 'keySymbol', method='update')
+
                           
     def dbCommit(self):
         # call from base to commit

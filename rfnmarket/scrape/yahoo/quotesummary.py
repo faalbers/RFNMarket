@@ -19,56 +19,59 @@ class QuoteSummary(Base):
         return [tableName]
 
     @staticmethod
-    def getModuleUpdatePeriods(forceUpdate):
-        mult = 1
-        if forceUpdate:
-            mult = 0
+    def getModuleUpdatePeriods():
         # maybe use actual dates instead of time differences from now ?
         moduleUpdatePeriods = {
-            'default': mult*60*60*24,
-            'price': mult*60*60*24,
-            'defaultKeyStatistics': mult*60*60*24,
-            'summaryDetail': mult*60*60*24,
-            'quoteType': mult*60*60*24*31*3,
-            'assetProfile': mult*60*60*24*31*3,
-            'fundProfile': mult*60*60*24*31*3,
+            'default': 60*60*24,
+            'price': 60*60*24,
+            'defaultKeyStatistics': 60*60*24,
+            'summaryDetail': 60*60*24,
+            'quoteType': 60*60*24*31*3,
+            'assetProfile': 60*60*24*31*3,
+            'fundProfile': 60*60*24*31*3,
         }
         return moduleUpdatePeriods
     
     def getSymbolModules(self, symbols, tables, forceUpdate):
         modules = set(tables)
-        moduleUpdatePeriods = self.getModuleUpdatePeriods(forceUpdate)
+        symbolModules = {}
+
+        # if forced update we just get all requested modules on all symbols
+        if forceUpdate:
+            for symbol in symbols:
+                symbolModules[symbol] = modules
+            return symbolModules
+
+        moduleUpdatePeriods = self.getModuleUpdatePeriods()
 
         # get status
         status = 'status_db'
-        dfStatus = None
-        now = datetime.now()
-        if self.db.tableExists(status):
-            dfStatus = pd.read_sql("SELECT * FROM '%s'" % status, self.db.getConnection(), index_col='keySymbol')
-        
+        dfStatus = self.db.tableRead(status, keyValues=symbols)
+       
         # check all requested symbols
-        symbolModules = {}
+        now = int(datetime.now().timestamp())
         for symbol in symbols:
-            if isinstance(dfStatus, pd.DataFrame):
-                updateModules = set(dfStatus.columns)
-                symbolModulesToDo = modules.difference(updateModules)
-                for module in modules.intersection(updateModules):
-                    moduleTimestamp = dfStatus[module].get(symbol, None)
-                    if moduleTimestamp == None:
+            if symbol in dfStatus:
+                # check all the found timestamps 
+                foundModules = set(dfStatus[symbol].keys())
+                # add the modules that are not found
+                symbolModulesToDo = modules.difference(foundModules)
+                # now check to see if we need to update the found oes based on timestamp
+                for module in foundModules.difference(symbolModulesToDo):
+                    moduleTimestamp = dfStatus[symbol][module]
+                    updateTimestamp = now-moduleUpdatePeriods['default']
+                    if module in moduleUpdatePeriods:
+                        # we found it, use that one
+                        updateTimestamp = now-moduleUpdatePeriods[module]
+                    if updateTimestamp >= moduleTimestamp:
+                        # this one needs update
                         symbolModulesToDo.add(module)
-                        continue
-                    else:
-                        updateTimestamp = int(now.timestamp())-moduleUpdatePeriods['default']
-                        if module in moduleUpdatePeriods:
-                            # we found it, use that one
-                            updateTimestamp = int(now.timestamp())-moduleUpdatePeriods[module]
-                        # add module if update timestamp is lower or equal then the module update timestamp
-                        if updateTimestamp >= moduleTimestamp:
-                            symbolModulesToDo.add(module)
-                if len(symbolModulesToDo) > 0: symbolModules[symbol] = symbolModulesToDo
-
+                # dont even add symbol if no modules need updating
+                if len(symbolModulesToDo) > 0:
+                    symbolModules[symbol] = symbolModulesToDo
             else:
-                symbolModules[symbol] = set().union(modules)
+                # symbol not found , update all requested modules
+                symbolModules[symbol] = modules
 
         return symbolModules
 
@@ -82,7 +85,7 @@ class QuoteSummary(Base):
 
         # dont'run  update if no symbols
         if len(symbolModules) == 0: return
-        
+      
         log.info('QuoteSummary update')
         log.info('requested modules  : %s' % " ".join(tables))
         log.info('symbols processing : %s' % len(symbolModules))
@@ -126,13 +129,13 @@ class QuoteSummary(Base):
                     symbolData = symbolData['result'][0]
                     modulesStart = datetime.now()
                     for module, moduleData in symbolData.items():
-                        self.db.idxTableWriteRow(moduleData, module, 'keySymbol', symbol, 'update')
+                        self.db.tableWrite(module, {symbol: moduleData}, 'keySymbol', method='replace')
 
         # update status
         status = {}
         for module in self.symbolModules[symbol]:
             status[module] = int(datetime.now().timestamp())
-        self.db.idxTableWriteRow(status, 'status_db', 'keySymbol', symbol, 'update')
+        self.db.tableWrite('status_db', {symbol: status}, 'keySymbol', method='update')
     
     def dbCommit(self):
         # call from base to commit

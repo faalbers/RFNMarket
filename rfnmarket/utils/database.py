@@ -49,7 +49,190 @@ class Database():
     def commit(self):
         self.connection.commit()
         log.info('Database: call commit: %s' % self.name)
-       
+    
+    def tableWrite(self, tableName, data, keyName, method='append'):
+        # make sure it is a dict
+        if not isinstance(data, dict):
+            raise TypeError('tableCreate: wrong datatype: %s' % type(data))
+        # if data is empty, do nothing
+        if len(data) == 0:
+            return
+
+        # expecting methods
+        if not method in ['append', 'update', 'replace']:
+            raise ValueError('tableCreate: wrong methode: %s' % method)
+        
+        # get key data type
+        keySqlDType = None
+        for key, keyData in data.items():
+            keySqlDType = self.__sqlDataTypes[type(key)]
+        if keySqlDType == None:
+            raise ValueError('tableCreate: data is empty')
+        
+        cursor = self.connection.cursor()
+        # only create table if not exist, add primary key column
+        cursor.execute("CREATE TABLE IF NOT EXISTS %s  ([%s] %s PRIMARY KEY)" % (tableName, keyName, keySqlDType))
+
+        # get table info
+        tableInfo = self.getTableInfo(tableName)
+        if not keyName in tableInfo['primaryKeyColumns']:
+            raise ValueError('tableCreate: key name not in existing table: %s' % keyName)
+        tableColumns = set(tableInfo['columns'])
+
+        # table indices as we build, maybe later implement with proc
+        keyValues = cursor.execute("SELECT %s FROM %s" % (keyName, tableName)).fetchall()
+        keyValues = set([x[0] for x in keyValues])
+
+        # set data columns structure
+        columnSqlTypes = {}
+        for keyValue, keyData in data.items():
+            for columnName, value in keyData.items():
+                if value == None: continue
+                columnSqlTypes[columnName] = self.__sqlDataTypes[type(value)]
+
+        # add columns if needed
+        columsToAdd = set(columnSqlTypes.keys()).difference(tableColumns)
+        for columnName in columsToAdd:
+            cursor.execute("ALTER TABLE %s ADD COLUMN [%s] %s" % (tableName, columnName, columnSqlTypes[columnName]))
+        
+        columns = [keyName]+list(columnSqlTypes.keys())
+        valuesAppend = []
+        valuesUpdate = []
+        dropKeys = set()
+        for keyValue, keyData in data.items():
+            if keyValue in keyValues:
+                # no need to append since it already exists
+                if method == 'append': continue
+                # drop key before appending it back
+                elif method == 'replace': dropKeys.add(keyValue)
+
+            rowValues = [None]*len(columns)
+            rowValues[0] = keyValue
+            cIndex = 1
+            for columnName in columns[1:]:
+                if columnName in keyData:
+                    value = keyData[columnName]
+                    if columnSqlTypes[columnName] == 'JSON':
+                        value = json.dumps(value)
+                    rowValues[cIndex] = value
+                cIndex += 1
+            if method in ['append', 'replace']: 
+                valuesAppend.append(tuple(rowValues))
+            else:
+                if keyValue in keyValues:
+                    valuesUpdate.append(rowValues)
+                else:
+                    valuesAppend.append(tuple(rowValues))
+
+
+        # print(columns)
+        # pp(valuesAppend)
+        # pp(valuesUpdate)
+        # print(dropKeys)
+
+        # drop rows
+        if len(dropKeys) > 0:
+            valHolderString = ','.join(['?']*len(dropKeys))
+            execString = "DELETE FROM '%s' WHERE [%s] IN (%s)" % (tableName, keyName, valHolderString)
+            cursor.execute(execString, tuple(dropKeys))
+
+        # append or update
+        if len(valuesAppend) > 0:
+            columnsString = ','.join('[%s]'%x for x in columns)
+            valHolderString = ','.join(['?']*len(columns))
+            execString = "INSERT OR IGNORE INTO %s (%s) VALUES (%s)" % (tableName, columnsString, valHolderString)
+            cursor.executemany(execString, valuesAppend)
+        if len(valuesUpdate) > 0:
+            for values in valuesUpdate:
+                updateColumns = []
+                updateValues = []
+                cIndex = 1
+                for value in values[1:]:
+                    if value != None:
+                        updateColumns.append(columns[cIndex])
+                        updateValues.append(value)
+                    cIndex += 1
+                columnsString = ','.join('[%s]'%x for x in updateColumns)
+                valHolderString = ','.join(['?']*len(updateColumns))
+                execString = "UPDATE %s SET (%s) = (%s) WHERE [%s] = '%s'"  % (tableName, columnsString, valHolderString, columns[0], values[0])
+                cursor.execute(execString, tuple(updateValues))
+        
+        cursor.close()
+
+    def tableRead(self, tableName, keyValues=[], columns=[]):
+        # get table info
+        tableInfo = self.getTableInfo(tableName)
+        if tableInfo == None or len(tableInfo['primaryKeyColumns']) == 0:
+            return {}
+        keyName = tableInfo['primaryKeyColumns'][0]
+
+        # get data
+        if len(columns) == 0:
+            columnsString = '*'
+        else:
+            columnsString = ','.join(['[%s]'%keyName]+['[%s]'%x for x in columns])
+        execString = "SELECT %s FROM '%s'" % (columnsString, tableName)
+
+        execution = None
+        cursor = self.connection.cursor()
+        if len(keyValues) > 0:
+            valHolderString = ','.join(['?']*len(keyValues))
+            execString += " WHERE [%s] IN (%s)" % (keyName, valHolderString)
+            execution = cursor.execute(execString, tuple(keyValues))
+        else:
+            execution = cursor.execute(execString)
+        dataColumns = [x[0] for x in execution.description]
+        dataColumnSqlTypes = []
+        for column in dataColumns:
+            dataColumnSqlTypes.append(tableInfo['columnTypes'][column])
+        dataValues = execution.fetchall()
+        cursor.close()
+
+        # retrieve data in dictionary
+        data = {}
+        for rowValues in dataValues:
+            rowData = data[rowValues[0]] = {}
+            cIndex = 1
+            for value in rowValues[1:]:
+                if value != None:
+                    if dataColumnSqlTypes[cIndex] == 'JSON':
+                        value = json.loads(value)
+                    rowData[dataColumns[cIndex]] = value
+                cIndex += 1
+
+        return data
+            
+    def idxTableReadDataOld(self, tableName, keyValues=[], columns=[]):
+        # get table info
+        tableInfo = self.getTableInfo(tableName)
+        if tableInfo == None or len(tableInfo['primaryKeyColumns']) == 0:
+            return pd.DataFrame()
+        keyName = tableInfo['primaryKeyColumns'][0]
+
+        # set sql
+        if len(columns) == 0:
+            columnsString = '*'
+        else:
+            columnsString = ','.join(['[%s]'%keyName]+['[%s]'%x for x in columns])
+        execString = "SELECT %s FROM %s" % (columnsString, tableName)
+        
+        # read table
+        dTypes = {'price': 'Int64'}
+        data = pd.read_sql("SELECT * FROM %s" % tableName, self.connection, dtype=dTypes)
+        print(data['price'].dtype.type)
+
+        data.set_index(keyName, inplace=True)
+        if len(keyValues) > 0:
+            data = data[data.index.isin(keyValues)]
+        
+        # turn json back to data
+        for columnName in data.columns:
+            if tableInfo['columnTypes'][columnName] == 'JSON':
+                data[columnName] = data[columnName].apply(json.loads)
+        
+        return data
+
+    
     def getTableNames(self):
         cursor = self.connection.cursor()
         names = [ x[0] for x in cursor.execute("SELECT name FROM sqlite_schema WHERE type='table'")]
@@ -95,10 +278,20 @@ class Database():
         cursor.execute("ALTER TABLE '%s' RENAME COLUMN [%s] TO '%s'" % (tableName, columnName, newColumnName))
         cursor.close()
     
+    def tableDrop(self, tableName):
+        cursor = self.connection.cursor()
+        cursor.execute("DROP TABLE IF EXISTS '%s'" % tableName)
+        cursor.close()
+        
     def tableColumnDrop(self, tableName, columnName):
         if not self.tableColumnExists(tableName, columnName): return
         cursor = self.connection.cursor()
         cursor.execute("ALTER TABLE '%s' DROP COLUMN [%s]" % (tableName, columnName))
+        cursor.close()
+
+    def vacuum(self):
+        cursor = self.connection.cursor()
+        cursor.execute("VACUUM")
         cursor.close()
 
     def tableExists(self, tableName):
@@ -113,6 +306,9 @@ class Database():
 
     def tableColumnExists(self, tableName, columnName):
         return columnName in self.getTableColumnNames(tableName)
+
+    
+    # ************* OLD STUFF **********
 
     def getTable(self, tableName):
         if not self.tableExists(tableName): return pd.DataFrame()
@@ -139,7 +335,37 @@ class Database():
 
         return keyValues
     
-    def idxTableReadData(self, tableName, keyValues=[], columns=[], dataType='dataframe'):
+    def idxTableReadDataOld(self, tableName, keyValues=[], columns=[]):
+        # get table info
+        tableInfo = self.getTableInfo(tableName)
+        if tableInfo == None or len(tableInfo['primaryKeyColumns']) == 0:
+            return pd.DataFrame()
+        keyName = tableInfo['primaryKeyColumns'][0]
+
+        # set sql
+        if len(columns) == 0:
+            columnsString = '*'
+        else:
+            columnsString = ','.join(['[%s]'%keyName]+['[%s]'%x for x in columns])
+        execString = "SELECT %s FROM %s" % (columnsString, tableName)
+        
+        # read table
+        dTypes = {'price': 'Int64'}
+        data = pd.read_sql("SELECT * FROM %s" % tableName, self.connection, dtype=dTypes)
+        print(data['price'].dtype.type)
+
+        data.set_index(keyName, inplace=True)
+        if len(keyValues) > 0:
+            data = data[data.index.isin(keyValues)]
+        
+        # turn json back to data
+        for columnName in data.columns:
+            if tableInfo['columnTypes'][columnName] == 'JSON':
+                data[columnName] = data[columnName].apply(json.loads)
+        
+        return data
+
+    def idxTableReadDataOld(self, tableName, keyValues=[], columns=[], dataType='dataframe'):
         # dataType is 'dataframe' or 'dict'
         data = None
         if dataType == 'dataframe':
@@ -147,7 +373,7 @@ class Database():
         elif dataType == 'dataframe':
             data = {}
 
-        # return emty data if table does not exist
+        # return empty data if table does not exist
         if not self.tableExists(tableName): return data
         
         cursor = self.connection.cursor()
@@ -175,10 +401,11 @@ class Database():
             result = cursor.execute(execString, tuple(keyValues))
         else:
             result = cursor.execute(execString)
-        
         # get columnNames and rowValues
         columnNames = [x[0] for x in result.description]
         rowValues = result.fetchall()
+        print(columnNames)
+        print(rowValues)
         dataRows = []
         for values in rowValues:
             rowData = {}
