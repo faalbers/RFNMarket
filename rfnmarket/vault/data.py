@@ -23,46 +23,20 @@ class Data():
         for scrapeClass in scrapeClasses:
             self.closeScrapeDB(scrapeClass)
 
-    # 'info': 'all avalable database data',
-    # 'dataFrames': {
-    #     'FinancialsA': {
-    #         'scrapes': {
-    #             scrape.yahoo.TimeSeries: {
-    #                 'all_quarterly_financials': {
-    #                     'columnSets': [
-    #                         ['*', '', False, False, False, False],
-    #                     ],
-    #                 },
-    #             },
-    #         },
-    #     },
-    #     'FinancialsB': {
-    #         'scrapes': {
-    #             scrape.yahoo.TimeSeries: {
-    #                 'all_annual_financials': {
-    #                     'columnSets': [
-    #                         ['*', '', False, False, False, False],
-    #                     ],
-    #                 },
-    #             },
-    #         },
-    #     },
-    # }
-
     def updateData(self, catalogs=[], symbols=[], forceUpdate=False):
         # gather scrape classes and needed tables
-        scrapeClasses = []
+        scraperClasses = []
         for catalog in catalogs:
             if catalog in self.__catalog:
                 for dataFrame, dfData in self.__catalog[catalog]['dataFrames'].items():
-                    for scrapeClass, scrapeData in dfData['scrapes'].items():
-                        scrapeClasses.append((scrapeClass, list(scrapeData.keys())))
-        
-        for ssData in scrapeClasses:
+                    for scraperClass, scraperData in dfData['scrapes'].items():
+                        scraperClasses.append((scraperClass, list(scraperData.keys())))
+
+        for ssData in scraperClasses:
             scraperClass = ssData[0]
             tableNames = []
             for tableName in ssData[1]:
-                tableNames += scrapeClass.getTableNames(tableName)
+                tableNames += scraperClass.getTableNames(tableName)
             tableNames = list(set(tableNames))
             scraperClass(symbols, tables=tableNames, forceUpdate=forceUpdate)
     
@@ -316,10 +290,20 @@ class Data():
         'test': {
             'info': 'ticker traded in us markets',
             'dataFrames': {
-                'Chart': {
+                'TimeSeries': {
                     'scrapes': {
-                        scrape.yahoo.Chart: {
-                            'all': {
+                        scrape.yahoo.TimeSeries: {
+                            'quarterlyAverageDilutionEarnings': {
+                                'columnSets': [
+                                    ['*', '', False, False, False, False],
+                                ],
+                            },
+                            'quarterlyBasicAverageShares': {
+                                'columnSets': [
+                                    ['*', '', False, False, False, False],
+                                ],
+                            },
+                            'quarterlyBasicEPS': {
                                 'columnSets': [
                                     ['*', '', False, False, False, False],
                                 ],
@@ -327,6 +311,17 @@ class Data():
                         },
                     },
                 },
+                # 'Chart': {
+                #     'scrapes': {
+                #         scrape.yahoo.Chart: {
+                #             'all': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
                 # 'TimeSeries': {
                 #     'scrapes': {
                 #         scrape.yahoo.TimeSeries: {
@@ -582,7 +577,7 @@ class Data():
             # 'postProcs': [__getTimeTable],
             'dataFrames': {
                 'chart': {
-                    'postProcs': [__getTimeTable],
+                    # 'postProcs': [__getTimeTable],
                     'scrapes': {
                         scrape.yahoo.Chart: {
                             'chart': {
@@ -599,15 +594,10 @@ class Data():
         'all': {
             'info': 'all avalable database data',
             'dataFrames': {
-                # 'FinancialsA': {
+                # 'mytest': {
                 #     'scrapes': {
                 #         scrape.yahoo.TimeSeries: {
-                #             'all_quarterly_financials': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #             'trailingPegRatio': {
+                #             'quarterlyTotalRevenue': {
                 #                 'columnSets': [
                 #                     ['*', '', False, False, False, False],
                 #                 ],
@@ -615,7 +605,18 @@ class Data():
                 #         },
                 #     },
                 # },
-                # 'FinancialsB': {
+                # 'all_quarterly_financials': {
+                #     'scrapes': {
+                #         scrape.yahoo.TimeSeries: {
+                #             'all_quarterly_financials': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'all_annual_financials': {
                 #     'scrapes': {
                 #         scrape.yahoo.TimeSeries: {
                 #             'all_annual_financials': {
@@ -626,10 +627,10 @@ class Data():
                 #         },
                 #     },
                 # },
-                # 'QuoteSummary': {
+                # 'all_trailing_financials': {
                 #     'scrapes': {
-                #         scrape.yahoo.QuoteSummary: {
-                #             'all': {
+                #         scrape.yahoo.TimeSeries: {
+                #             'all_trailing_financials': {
                 #                 'columnSets': [
                 #                     ['*', '', False, False, False, False],
                 #                 ],
@@ -637,9 +638,65 @@ class Data():
                 #         },
                 #     },
                 # },
-                'Chart': {
+                # 'all_quarterly_balanceSheet': {
+                #     'scrapes': {
+                #         scrape.yahoo.TimeSeries: {
+                #             'all_quarterly_balanceSheet': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'all_annual_balanceSheet': {
+                #     'scrapes': {
+                #         scrape.yahoo.TimeSeries: {
+                #             'all_annual_balanceSheet': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'all_quarterly_cashFlow': {
+                #     'scrapes': {
+                #         scrape.yahoo.TimeSeries: {
+                #             'all_quarterly_cashFlow': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'all_annual_cashFlow': {
+                #     'scrapes': {
+                #         scrape.yahoo.TimeSeries: {
+                #             'all_annual_cashFlow': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'all_trailing_cashFlow': {
+                #     'scrapes': {
+                #         scrape.yahoo.TimeSeries: {
+                #             'all_trailing_cashFlow': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                
+                'QuoteSummary': {
                     'scrapes': {
-                        scrape.yahoo.Chart: {
+                        scrape.yahoo.QuoteSummary: {
                             'all': {
                                 'columnSets': [
                                     ['*', '', False, False, False, False],
@@ -648,6 +705,17 @@ class Data():
                         },
                     },
                 },
+                # 'Chart': {
+                #     'scrapes': {
+                #         scrape.yahoo.Chart: {
+                #             'all': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
                 # 'StockList': {
                 #     'scrapes': {
                 #         scrape.fmp.StockList: {

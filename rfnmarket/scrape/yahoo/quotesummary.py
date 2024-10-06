@@ -32,46 +32,60 @@ class QuoteSummary(Base):
         }
         return moduleUpdatePeriods
     
-    def getSymbolModules(self, symbols, tables, forceUpdate):
+    def update(self, symbols, tables, forceUpdate):
         modules = set(tables)
         symbolModules = {}
 
-        # if forced update we just get all requested modules on all symbols
         if forceUpdate:
             for symbol in symbols:
                 symbolModules[symbol] = modules
             return symbolModules
 
-        moduleUpdatePeriods = self.getModuleUpdatePeriods()
+        # check last timestamp of symbols in quote database
+        dataStatus = self.db.tableRead('status_db', keyValues=symbols, columns=tables)
 
-        # get status
-        status = 'status_db'
-        dfStatus = self.db.tableRead(status, keyValues=symbols)
-       
-        # check all requested symbols
-        now = int(datetime.now().timestamp())
+        # build status check for all symbols
+        statusCheck = {}
         for symbol in symbols:
-            if symbol in dfStatus:
-                # check all the found timestamps 
-                foundModules = set(dfStatus[symbol].keys())
-                # add the modules that are not found
-                symbolModulesToDo = modules.difference(foundModules)
-                # now check to see if we need to update the found oes based on timestamp
-                for module in foundModules.difference(symbolModulesToDo):
-                    moduleTimestamp = dfStatus[symbol][module]
-                    updateTimestamp = now-moduleUpdatePeriods['default']
-                    if module in moduleUpdatePeriods:
-                        # we found it, use that one
-                        updateTimestamp = now-moduleUpdatePeriods[module]
-                    if updateTimestamp >= moduleTimestamp:
-                        # this one needs update
-                        symbolModulesToDo.add(module)
-                # dont even add symbol if no modules need updating
-                if len(symbolModulesToDo) > 0:
-                    symbolModules[symbol] = symbolModulesToDo
+            statusCheck[symbol] = {}
+            if symbol in dataStatus:
+                for module in modules:
+                    statusCheck[symbol][module] = {}
+                    if module in dataStatus[symbol]:
+                        # module was done for symbol before
+                        statusCheck[symbol][module]['status'] = dataStatus[symbol][module]
+                    else:
+                        # No status for tstype in symbol, set both to none
+                        statusCheck[symbol][module] = {'status': None}
             else:
-                # symbol not found , update all requested modules
-                symbolModules[symbol] = modules
+                # no status for symbol, set all modules to status and latest None
+                for module in modules:
+                    statusCheck[symbol][module] = {'status': None}
+
+        # create symbolModules
+        moduleUpdatePeriods = self.getModuleUpdatePeriods()
+        tenyearTimediff = int(60*60*24*365.2422*10)
+        now = int(datetime.now().timestamp())
+        for symbol, checkData in statusCheck.items():
+            # setup settings 
+            settings = set()
+            for module, statusData in  checkData.items():
+                if statusData['status'] == None:
+                    settings.add(module)
+                else:
+                    # set the update time
+                    if module in moduleUpdatePeriods:
+                        updateTimestamp = now - moduleUpdatePeriods[module]
+                    else:
+                        updateTimestamp = now - moduleUpdatePeriods['default']
+                    # get last entry timestamp for module
+                    lastTimeStamp = dataStatus[symbol][module]
+                    if lastTimeStamp <= updateTimestamp:
+                        # we need to update
+                        settings.add(module)
+            # if settings is not empty addit to the symbol entry of symbolModules
+            if len(settings) > 0:
+                symbolModules[symbol] = settings
 
         return symbolModules
 
@@ -81,7 +95,8 @@ class QuoteSummary(Base):
         
         # update if needed 
         # modules not used , might as well remove it, it's always empty
-        symbolModules = self.getSymbolModules(symbols, tables, forceUpdate=forceUpdate)
+        # symbolModules = self.getSymbolModules(symbols, tables, forceUpdate=forceUpdate)
+        symbolModules = self.update(symbols, tables, forceUpdate=forceUpdate)
 
         # dont'run  update if no symbols
         if len(symbolModules) == 0: return

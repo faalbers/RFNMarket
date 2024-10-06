@@ -166,6 +166,9 @@ class Database():
             return {}
         keyName = tableInfo['primaryKeyColumns'][0]
 
+        # handle only columns that exist
+        columns = set(columns).intersection(set(tableInfo['columns']))
+
         # get data
         if len(columns) == 0:
             columnsString = '*'

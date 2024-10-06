@@ -6,7 +6,14 @@ Tables:
 
     'status_db':
     These tables have a primary key column (unique values) and INT typed columns named after other existing tables,
-    The rows contain the key value (mostly ticker symbol) and last updated time stamp for each named table column
+    The rows contain the key value (mostly ticker symbol) and last updated try time stamp for each named table column
+    example:
+    keySymbol STRING PRIMARY KEY, {name of table} INTEGER, {name of table} INTEGER, ...
+    'VITAX', 172778940, 1696339800, ...
+
+    'lastentry_db':
+    These tables have a primary key column (unique values) and INT typed columns named after other existing tables,
+    The rows contain the key value (mostly ticker symbol) and last entry time stamp of time series tables
     example:
     keySymbol STRING PRIMARY KEY, {name of table} INTEGER, {name of table} INTEGER, ...
     'VITAX', 172778940, 1696339800, ...

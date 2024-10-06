@@ -21,101 +21,97 @@ class TimeSeries(Base):
             return tableNames
         return [tableName]
 
-    def setUpdatePeriods(self):
-        mult = 1
-        # we use a default of a bit more then 3 months to make sure we get latest quarterly
-        self.updateTsTypePeriods = {
-            'default': int(mult*60*60*24*31*3.1),
-        }
-
-    def getSymbolSettings(self, symbols, tables, forceUpdate):
+    def update(self, symbols, tables, forceUpdate=False):
+        tsTypes = set(tables)
         symbolSettings = {}
 
-        tables = set(tables)
+        if forceUpdate:
+            now = int(datetime.now().timestamp())
+            tenYear = int(now - (60*60*24*365.2422*10))
+            for symbol in symbols:
+                symbolSettings[symbol] = {}
+                symbolSettings[symbol][tenYear] = tsTypes
+            return symbolSettings
 
-        print('TimeSeries:')
-        print(tables)
+        # check last timestamp of symbols in quote database
+        dataStatus = self.db.tableRead('status_db', keyValues=symbols, columns=tables)
+        dataLastEntry = self.db.tableRead('lastentry_db', keyValues=symbols, columns=tables)
 
-        return symbolSettings
-
+        # build status check for all symbols
+        statusCheck = {}
         for symbol in symbols:
-            symbolSettings[symbol] = {
-                'types': set(tables),
-                'period1': int( datetime.now().timestamp() - (60*60*24*365.2422*10) ),
-            }
-
+            statusCheck[symbol] = {}
+            if symbol in dataStatus:
+                for tsType in tsTypes:
+                    statusCheck[symbol][tsType] = {}
+                    if tsType in dataStatus[symbol]:
+                        # tsType was done for symbol before
+                        statusCheck[symbol][tsType]['status'] = dataStatus[symbol][tsType]
+                        if symbol in dataLastEntry and tsType in dataLastEntry[symbol]:
+                            # tsType has latest entry for symbol
+                            statusCheck[symbol][tsType]['latest'] = dataLastEntry[symbol][tsType]
+                        else:
+                            statusCheck[symbol][tsType]['latest'] = None
+                    else:
+                        # No status for tstype in symbol, set both to none
+                        statusCheck[symbol][tsType] = {'status': None, 'last': None}
+            else:
+                # no status for symbol, set all tsTypes to status and latest None
+                for tsType in tsTypes:
+                    statusCheck[symbol][tsType] = {'status': None, 'last': None}
+        
+        # create symbolSettings
+        annualTimediff = 60*60*24*365
+        quarterlyTimediff = 60*60*24*31*3
+        trailingTimediff = 60*60*24*365
+        tenyearTimediff = int(60*60*24*365.2422*10)
+        now = int(datetime.now().timestamp())
+        for symbol, checkData in statusCheck.items():
+            # setup settings 
+            settings = {}
+            for tsType, statusData in  checkData.items():
+                if statusData['status'] == None:
+                    # not done yet , we search for 10 years
+                    lastTimeStamp = now - tenyearTimediff
+                    if not lastTimeStamp in settings:
+                        settings[lastTimeStamp] = set()
+                    settings[lastTimeStamp].add(tsType)
+                elif statusData['latest'] == None:
+                    # it has been tried before, but nothing popped up
+                    # we triy once every year
+                    updateTimestamp = now - annualTimediff
+                    lastTimeStamp = now
+                    if lastTimeStamp <= updateTimestamp:
+                        if not lastTimeStamp in settings:
+                            settings[lastTimeStamp] = set()
+                        settings[lastTimeStamp].add(tsType)
+                else:
+                    # set the update time to check based on naming of tsType
+                    if tsType.startswith('annual'):
+                        updateTimestamp = now - annualTimediff
+                    elif tsType.startswith('quarterly'):
+                        updateTimestamp = now - quarterlyTimediff
+                    elif tsType.startswith('trailing'):
+                        updateTimestamp = now - trailingTimediff
+                    # get last entry timestamp for tsType
+                    lastTimeStamp = dataLastEntry[symbol][tsType]
+                    if lastTimeStamp <= updateTimestamp:
+                        # we need to update with found period timestamp
+                        if not lastTimeStamp in settings:
+                            settings[lastTimeStamp] = set()
+                        settings[lastTimeStamp].add(tsType)
+            # if settings is not empty addit to the symbol entry of symbolSettings
+            if len(settings) > 0:
+                symbolSettings[symbol] = settings
+        
         return symbolSettings
     
-    def trimSymbols(self):
-        # set timeseries types for type requests
-        tsTypesForTypes = {
-            # 'test': ['trailingPegRatio'],
-            # 'test': ['trailingPegRatio', 'quarterlyNormalizedEBITDA', 'quarterlyTaxRateForCalcs'],
-            'test': ['quarterlyTaxRateForCalcs', 'quarterlyNormalizedEBITDA','trailingPegRatio', 'annualRetainedEarnings'],
-        }
-        
-        # find timeseries types
-        self.tsTypes = set()
-        for type in self.types:
-            self.tsTypes = self.tsTypes.union(set(tsTypesForTypes[type]))
-
-        # find timeseries types for symbols
-        self.symbolTsTypes = {}
-        for symbol in self.symbols:
-            self.symbolTsTypes[symbol] = set(self.tsTypes)
-
-        # set all symbols with 10 year period 1 for if we never did them before
-        now = datetime.now()
-        self.lowestTimestamp = int(now.timestamp())
-        self.symbolPeriod1 = {}
-        for symbol in self.symbols:
-            self.symbolPeriod1[symbol] = self.lowestTimestamp - int(60*60*24*365.2422*10)
-        
-        # remove modules per symbol if update period is not over yet based on last runs
-        # # also remove symbols if they don't need to be updated     
-        db = database.Database(self.dbName)
-        now = datetime.now()
-        self.lowestTimestamp = int(now.timestamp())
-        values, params = db.getRows('status_db')
-        for value in values:
-            symbol = value[0]
-            # only check symbols we are requesting
-            if symbol in self.symbolTsTypes:
-                valIndex = 1
-                for tsType in params[1:]:
-                    tsTypeTimestamp = value[valIndex]
-                    # check if found tsTypes are in curren ymbol's tsType list
-                    if tsType in self.symbolTsTypes[symbol]:
-                        # set default period if we cant find period of the tsType in the presets
-                        updateTimestamp = int(now.timestamp())-self.updateTsTypePeriods['default']
-                        if tsType in self.updateTsTypePeriods:
-                            # we found it, use that one
-                            updateTimestamp = int(now.timestamp())-self.updateTsTypePeriods[tsType]
-                        # find the lowest tsTypes update on all requested symbols
-                        if tsTypeTimestamp < self.lowestTimestamp: self.lowestTimestamp = tsTypeTimestamp
-                        # if we did not pass update period yet, remove module from symbol modules
-                        if tsTypeTimestamp >= updateTimestamp:
-                            self.symbolTsTypes[symbol].remove(tsType)
-                        else:
-                            self.symbolPeriod1[symbol] = tsTypeTimestamp
-                    valIndex += 1
-                # finally check if we still have modules left on the symbols. If not, reove symbol from list
-                if len(self.symbolTsTypes[symbol]) == 0:
-                    self.symbols.remove(value[0])
-        
-        # finally gather all tsTypes that will be read
-        self.tsTypes = set()
-        for symbol in self.symbols:
-            self.tsTypes = self.tsTypes.union(self.symbolTsTypes[symbol])
-
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()
         self.db = database.Database(self.dbName)
 
         # update if needed 
-        # modules not used , might as well remove it, it's always empty
-        symbolSettings = self.getSymbolSettings(symbols, tables, forceUpdate=forceUpdate)
-        print(symbolSettings)
+        symbolSettings = self.update(symbols, tables, forceUpdate=forceUpdate)
 
         # dont'run  update if no symbols
         if len(symbolSettings) == 0: return
@@ -124,165 +120,77 @@ class TimeSeries(Base):
         log.info('requested types   : %s' % " ".join(tables))
         log.info('symbols processing: %s' % len(symbolSettings))
 
-
-        # log.info('QuoteSummary update')
-        # self.dbName = 'yahoo_timeseries'
-        # # make shore we don't mess up the referenced symbols variable
-        # self.symbols = list(symbols)
-        # self.types = types
-        # self.setUpdatePeriods()
-        # self.trimSymbols()
-
-
-        # log.info('types requested     : %s' % " ".join(types))
-        # log.info('requested tsTypes   : %s' % " ".join(self.tsTypes))
-        # log.info('update before       : %s' % datetime.fromtimestamp(updateTimestamp))
-        # log.info('last time updated   : %s' % (datetime.now() - datetime.fromtimestamp(self.lowestTimestamp)))
-        # log.info('symbols processing  : %s' % len(self.symbols))
+        self.symbolSettings = symbolSettings
 
         # update procs need these
         self.symbols = [] # accessed by index
-        self.symbolSettings = symbolSettings
-
+        self.tsTypes = []
         requestArgsList = []
         typesProcessed = set()
-        # for symbol in self.symbols:
-        for symbol, settings in symbolSettings.items():
-            typesProcessed = typesProcessed.union(settings['types'])
-            period1 = settings['period1']
-            period2 = int(datetime.now().timestamp())
+        for symbol, tsPeriodTypes in symbolSettings.items():
+            # print(symbol)
+            for period1, types in tsPeriodTypes.items():
+                # for symbol in self.symbols:
+                # for symbol, settings in symbolSettings.items():
+                typesProcessed = typesProcessed.union(types)
+                period2 = int(datetime.now().timestamp())
 
-            typesString = ",".join(settings['types'])
-            print('types  : %s' % typesString)
-            print('period1: %s' % datetime.fromtimestamp(period1))
-            print('period2: %s' % datetime.fromtimestamp(period2))
-            requestArgs = {
-                        'url': 'https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/'+symbol.upper(),
-                        'params': {
-                            'type': typesString,
-                            'period1': period1,
-                            'period2': period2,
-                        },
-                        'timeout': 30,
-            }                      
-            requestArgsList.append(requestArgs)
-            self.symbols.append(symbol)
+                typesString = ",".join(types)
+                # print('types  : %s' % len(types))
+                # print('types  : %s' % typesString)
+                # print('period1: %s' % datetime.fromtimestamp(period1))
+                # print('period2: %s' % datetime.fromtimestamp(period2))
+                requestArgs = {
+                            'url': 'https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/'+symbol.upper(),
+                            'params': {
+                                'type': typesString,
+                                'period1': period1,
+                                'period2': period2,
+                            },
+                            'timeout': 30,
+                }                      
+                requestArgsList.append(requestArgs)
+                self.symbols.append(symbol)
+                self.tsTypes.append(types)
         log.info('types processing : %s' % " ".join(typesProcessed))
-        self.multiRequest(requestArgsList, blockSize=50)
-
-    def updateStatus(self, symbol):
-        self.db.createTable('status_db', ["'keySymbol' TEXT PRIMARY KEY"])
-        self.db.insertOrIgnore('status_db', ['keySymbol'], (symbol,))
-        params = []
-        values = []
-        for tsType in self.symbolSettings[symbol]['types']:
-            self.db.addColumn('status_db', tsType, 'TIMESTAMP')
-            params.append(tsType)
-            values.append(int(datetime.now().timestamp()))
-        self.db.update( 'status_db', 'keySymbol', symbol, params, tuple(values) )
+        log.info('requests running : %s' % len(requestArgsList))
+        self.multiRequest(requestArgsList, blockSize=100)
 
     def pushAPIData(self, symbolIndex, response):
         symbol = self.symbols[symbolIndex]
+
+        typeLastTimestamps = {}
         if response.headers.get('content-type').startswith('application/json'):
             symbolData = response.json()
-            for typeData in symbolData['timeseries']['result']:
-                tsType = typeData['meta']['type'][0]
-                if not tsType in typeData: continue
+            if symbolData['timeseries']['result'] != None:
+                for typeData in symbolData['timeseries']['result']:
+                    tsType = typeData['meta']['type'][0]
+                    if not tsType in typeData: continue
+                    typeData = typeData[tsType]
+                    writeData = {}
+                    # pp(typeData)
+                    lastTimestamp = 0
+                    if len(typeData) > 0:
+                        # print(tsType)
+                        # pp(typeData)
+                        writeData[symbol] = {}
+                        for entry in typeData:
+                            writeData[symbol]['currency'] = entry['currencyCode']
+                            writeData[symbol][entry['asOfDate']] = entry['reportedValue']['raw']
+                            entryTimestamp = int(datetime.strptime(entry['asOfDate'], '%Y-%m-%d').timestamp())
+                            if entryTimestamp > lastTimestamp: lastTimestamp = entryTimestamp
+                    
+                    if len(writeData) > 0:
+                        self.db.tableWrite(tsType, writeData, 'keySymbol', method='update')
+                        self.db.tableWrite('lastentry_db', {symbol: {tsType: lastTimestamp}}, 'keySymbol', method='update')
+                    
+        # update status
+        status = {symbol: {}}
+        now = int(datetime.now().timestamp())
+        for tsType in self.tsTypes[symbolIndex]:
+            status[symbol][tsType] = now
+        self.db.tableWrite('status_db', status, 'keySymbol', method='update')
 
-                # get entry dataFrame
-                self.db.idxTableWriteTable(typeData[tsType], tsType, 'asOfDate', method='append')
-
-                # entry = pd.DataFrame(typeData[tsType])
-                # print(entry)
-                # entry.insert(0, 'timestamp', typeData['timestamp'])
-                # # entry['date'] = pd.to_datetime(entry['date'], unit='s')
-                # entry['reportedValue'] = entry['reportedValue'].apply(json.dumps)
-                # dtype = {
-                #     'timestamp': 'TIMESTAMP PRIMARY KEY',
-                #     'reportedValue': 'JSON',
-                # }
-
-                # if not self.db.tableExists(type):
-                #     # table does not exist, create new one
-                #     entry.to_sql(type, self.db.getConnection(), if_exists='replace', index=False, dtype=dtype)
-                # else:
-                #     # it exists, filter out already existing timestamps. Then append
-                #     foundDates = self.db.getColumn(type, 'timestamp')
-                #     entry = entry[~entry['timestamp'].isin(foundDates)]
-                #     entry.to_sql(type, self.db.getConnection(), if_exists='append', index=False, dtype=dtype)
-
-            
-
-    # def pushAPIData(self, symbolIndex, response):
-    #     symbol = self.symbols[symbolIndex]
-    #     if response.headers.get('content-type').startswith('application/json'):
-    #         symbolData = response.json()
-    #         if 'timeseries' in symbolData:
-    #             # handle API response
-    #             symbolData = symbolData['timeseries']
-    #             if symbolData['error'] != None:
-    #                 # handle error response
-    #                 symbolData = symbolData['error']
-    #             elif symbolData['result'] != None:
-    #                 # handle data return response
-    #                 symbolData = symbolData['result']
-    #                 for timeseriesData in symbolData:
-    #                     self. updateTimeseriesDB(symbol, timeseriesData)
-    #                 self.updateStatus(symbol)
-    
-    # def updateTimeseriesDB(self, symbol, timeseriesData):
-    #     type = timeseriesData['meta']['type'][0]
-    #     if not type in timeseriesData: return
-    #     timestamps = timeseriesData['timestamp']
-    #     tsDataList = timeseriesData[type]
-    #     self.db.createTable(type, ["'keySymbolTimestamp' TEXT PRIMARY KEY", "'symbol' TEXT", "'timestamp' TIMESTAMP"])
-    #     index = 0
-    #     for tsData in tsDataList:
-    #         keySymbolTimestamp = symbol+":"+str(timestamps[index])
-    #         self.db.insertOrIgnore(type, ['keySymbolTimestamp'], (keySymbolTimestamp,))
-    #         params = ['symbol', 'timestamp']
-    #         values = [symbol, timestamps[index]]
-    #         missedTypes = set()
-    #         allTsData = {}
-    #         for param, value in tsData.items():
-    #             if isinstance(value, dict):
-    #                 for vparam, vvalue in value.items():
-    #                     allTsData[vparam] = vvalue
-    #             else:
-    #                 allTsData[param] = value
-    #         for param, value in allTsData.items():
-    #             if isinstance(value, int):
-    #                 self.db.addColumn(type, param, 'INTEGER')
-    #                 params.append(param)
-    #                 values.append(value)
-    #             elif isinstance(value, float):
-    #                 self.db.addColumn(type, param, 'FLOAT')
-    #                 params.append(param)
-    #                 values.append(value)
-    #             elif isinstance(value, str):
-    #                 self.db.addColumn(type, param, 'TEXT')
-    #                 params.append(param)
-    #                 values.append(value)
-    #             elif isinstance(value, bool):
-    #                 self.db.addColumn(type, param, 'BOOLEAN')
-    #                 params.append(param)
-    #                 values.append(value)
-    #             elif isinstance(value, list):
-    #                 self.db.addColumn(type, param, 'JSON')
-    #                 params.append(param)
-    #                 values.append(json.dumps(value))
-    #             elif isinstance(value, dict):
-    #                 self.db.addColumn(type, param, 'JSON')
-    #                 params.append(param)
-    #                 values.append(json.dumps(value))
-    #             elif isinstance(value, type(None)):
-    #                 pass
-    #             else:
-    #                 missedTypes.add(type(value))
-    #         self.db.update( type, 'keySymbolTimestamp', keySymbolTimestamp, params, tuple(values) )
-    #         if len(missedTypes) > 0:
-    #             log.info('TimeSeries: missed data types: %s' % list(missedTypes))
-    #         index += 1
     
     def dbCommit(self):
         # call from base to commit
