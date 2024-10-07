@@ -290,27 +290,27 @@ class Data():
         'test': {
             'info': 'ticker traded in us markets',
             'dataFrames': {
-                'TimeSeries': {
-                    'scrapes': {
-                        scrape.yahoo.TimeSeries: {
-                            'quarterlyAverageDilutionEarnings': {
-                                'columnSets': [
-                                    ['*', '', False, False, False, False],
-                                ],
-                            },
-                            'quarterlyBasicAverageShares': {
-                                'columnSets': [
-                                    ['*', '', False, False, False, False],
-                                ],
-                            },
-                            'quarterlyBasicEPS': {
-                                'columnSets': [
-                                    ['*', '', False, False, False, False],
-                                ],
-                            },
-                        },
-                    },
-                },
+                # 'TimeSeries': {
+                #     'scrapes': {
+                #         scrape.yahoo.TimeSeries: {
+                #             'quarterlyAverageDilutionEarnings': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #             'quarterlyBasicAverageShares': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #             'quarterlyBasicEPS': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
                 # 'Chart': {
                 #     'scrapes': {
                 #         scrape.yahoo.Chart: {
@@ -594,17 +594,6 @@ class Data():
         'all': {
             'info': 'all avalable database data',
             'dataFrames': {
-                # 'mytest': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'quarterlyTotalRevenue': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
                 # 'all_quarterly_financials': {
                 #     'scrapes': {
                 #         scrape.yahoo.TimeSeries: {
@@ -694,17 +683,17 @@ class Data():
                 #     },
                 # },
                 
-                'QuoteSummary': {
-                    'scrapes': {
-                        scrape.yahoo.QuoteSummary: {
-                            'all': {
-                                'columnSets': [
-                                    ['*', '', False, False, False, False],
-                                ],
-                            },
-                        },
-                    },
-                },
+                # 'QuoteSummary': {
+                #     'scrapes': {
+                #         scrape.yahoo.QuoteSummary: {
+                #             'all': {
+                #                 'columnSets': [
+                #                     ['*', '', False, False, False, False],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
                 # 'Chart': {
                 #     'scrapes': {
                 #         scrape.yahoo.Chart: {
@@ -738,17 +727,17 @@ class Data():
                 #         },
                 #     },
                 # },
-                # 'Saved': {
-                #     'scrapes': {
-                #         scrape.saved.Saved: {
-                #             'all': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
+                'Saved': {
+                    'scrapes': {
+                        scrape.saved.Saved: {
+                            'all': {
+                                'columnSets': [
+                                    ['*', '', False, False, False, False],
+                                ],
+                            },
+                        },
+                    },
+                },
             },
         },
     }

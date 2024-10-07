@@ -20,14 +20,13 @@ class StockList(Base):
         self.db = database.Database(self.dbName)
 
         # check if we need to update stocklist, maybe once every half a year
-        status = self.db.idxTableReadData('status_db')
+        dataStatus = self.db.tableRead('status_db', keyValues=['ALLSYMBOLS'], columns=['stocklist'])
         lastUpdateTime = None
-        if len(status) != 0:
-            lastUpdateTime = status.loc['all', 'stocklist']
-        if not forceUpdate:
+        if not forceUpdate and len(dataStatus) > 0:
+            lastUpdateTime = dataStatus['ALLSYMBOLS']['stocklist']
             updateTime = int(datetime.now().timestamp() - (60*60*24*31*6))
-            if lastUpdateTime != None and lastUpdateTime > updateTime: return
-        
+            if lastUpdateTime > updateTime: return
+
         log.info('FMP StockList updating')
         if lastUpdateTime != None:
             log.info('Last time updated: %s' % datetime.fromtimestamp(lastUpdateTime))
@@ -41,16 +40,10 @@ class StockList(Base):
       
         if response.headers.get('content-type').startswith('application/json'):
             responseData = response.json()
-            pdData = pd.DataFrame(responseData)
-            pdData.set_index('symbol', inplace=True)
-            pdData.rename_axis('keySymbol', inplace=True)
-            # remove duplicate indices
-            pdData = pdData.reset_index().drop_duplicates()
-            pdData.set_index('keySymbol', inplace=True)
-            
-            dtype = {'keySymbol': 'TEXT PRIMARY KEY'}
-            pdData.to_sql('stocklist', self.db.getConnection(), index=True, if_exists='replace', dtype=dtype)
-            
-            status = {'stocklist': int(datetime.now().timestamp())}
-            self.db.idxTableWriteRow(status, 'status_db', 'timestamps', 'all', 'update')
-    
+            writeData =  {}
+            for entry in responseData:
+                symbol = entry.pop('symbol')
+                writeData[symbol] = entry
+            self.db.tableWrite('stocklist', writeData, 'keySymbol', method='update')
+
+            self.db.tableWrite('status_db', {'ALLSYMBOLS': {'stocklist': int(datetime.now().timestamp())}}, 'keySymbol', method='update')

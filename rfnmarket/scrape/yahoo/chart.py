@@ -10,6 +10,8 @@ class Chart(Base):
 
     @staticmethod
     def getTableNames(tableName):
+        if tableName == 'all':
+            return ['chart']
         return [tableName]
 
     @staticmethod

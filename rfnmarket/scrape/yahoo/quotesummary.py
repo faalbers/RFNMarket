@@ -129,7 +129,6 @@ class QuoteSummary(Base):
         self.multiRequest(requestArgsList, blockSize=100)
     
     def pushAPIData(self, symbolIndex, response):
-        pushStart = datetime.now()
         symbol = self.symbols[symbolIndex]
         if response.headers.get('content-type').startswith('application/json'):
             symbolData = response.json()

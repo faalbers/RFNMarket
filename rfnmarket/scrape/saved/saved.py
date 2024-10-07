@@ -24,7 +24,9 @@ class Saved():
 
     def readQuicken(self):
         # get status first
-        statusDb = self.db.idxTableReadData('status_db')
+        statusDb = self.db.tableRead('status_db', keyValues=['ALLSYMBOLS'])
+        if 'ALLSYMBOLS' in statusDb:
+            statusDb = statusDb['ALLSYMBOLS']
 
         # find QIF files and parse them
         qifFiles = glob.glob(self.dataPath+'*.QIF')
@@ -37,7 +39,7 @@ class Saved():
             tableName = 'QUICKEN_'+dataName
 
             # only read data from newer files
-            if tableName in statusDb and fileDate <= statusDb.loc['all', tableName]: continue
+            if tableName in statusDb and fileDate <= statusDb[tableName]: continue
 
             log.info('Creating Quicken data: %s' % dataName)
             
@@ -113,13 +115,14 @@ class Saved():
             dfWrite.to_sql(tableName, con=connection, index=False, if_exists='replace')
 
             # update status
-            status = {tableName: fileDate}
-            self.db.idxTableWriteRow(status, 'status_db', 'timestamps', 'all', 'update')
+            self.db.tableWrite('status_db', {'ALLSYMBOLS': {tableName: fileDate}}, 'keySymbol', method='update')
 
     def readCSV(self):
         cvsFiles = glob.glob(self.dataPath+'*.csv')
         # get status first
-        statusDb = self.db.idxTableReadData('status_db')
+        statusDb = self.db.tableRead('status_db', keyValues=['ALLSYMBOLS'])
+        if 'ALLSYMBOLS' in statusDb:
+            statusDb = statusDb['ALLSYMBOLS']
         
         # now lets retrieve the data if needed
         connection = self.db.getConnection()
@@ -129,7 +132,7 @@ class Saved():
             dataName = Path(cvsFile).stem
             
             # only read data from newer files
-            if dataName in statusDb and fileDate <= statusDb.loc['all', dataName]: continue
+            if dataName in statusDb and fileDate <= statusDb[dataName]: continue
             
             log.info('Update saved: %s' % dataName)
 
@@ -139,8 +142,7 @@ class Saved():
             filesRead += 1
 
             # update status
-            status = {dataName: fileDate}
-            self.db.idxTableWriteRow(status, 'status_db', 'timestamps', 'all', 'update')
+            self.db.tableWrite('status_db', {'ALLSYMBOLS': {dataName: fileDate}}, 'keySymbol', method='update')
 
         if filesRead > 0:
             log.info('CSV files read and updated: %s' % filesRead)

@@ -159,7 +159,6 @@ class TimeSeries(Base):
     def pushAPIData(self, symbolIndex, response):
         symbol = self.symbols[symbolIndex]
 
-        typeLastTimestamps = {}
         if response.headers.get('content-type').startswith('application/json'):
             symbolData = response.json()
             if symbolData['timeseries']['result'] != None:

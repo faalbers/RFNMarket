@@ -20,14 +20,23 @@ class Tickers(Base):
         self.db = database.Database(self.dbName)
 
         # check if we need to update stocklist, maybe once every half a year
-        statusDb = self.db.idxTableReadData('status_db')
+        dataStatus = self.db.tableRead('status_db', keyValues=['ALLSYMBOLS'], columns=['tickers', 'types'])
+        lastUpdateTypes = None
+        lastUpdateTickers = None
         updateTime = int(datetime.now().timestamp() - (60*60*24*31*6))
-      
-        lastUpdateTime = updateTime
-        if len(statusDb) > 0: lastUpdateTime = statusDb.loc['all', 'types']
-        if forceUpdate or lastUpdateTime <= updateTime:
+        if not forceUpdate:
+            if 'ALLSYMBOLS' in dataStatus:
+                status = dataStatus['ALLSYMBOLS']
+                if 'types' in status: lastUpdateTypes = status['types']
+                if 'tickers' in status: lastUpdateTickers = status['tickers']
+
+        if lastUpdateTypes == None or lastUpdateTypes <= updateTime:
             log.info('Polygon types updating')
-            log.info('Last time updated: %s' % datetime.fromtimestamp(lastUpdateTime))
+            if lastUpdateTypes == None:
+                log.info('First time update')
+            else:
+                log.info('Last time updated: %s' % datetime.fromtimestamp(lastUpdateTypes))
+            
             nextRequestArgs = {
                 'url': 'https://api.polygon.io/v3/reference/tickers/types',
             }
@@ -35,20 +44,21 @@ class Tickers(Base):
             if response.headers.get('content-type').startswith('application/json'):
                 responseData = response.json()
                 responseData = responseData['results']
-                pdData = pd.DataFrame(responseData)
-                pdData.set_index('code', inplace=True)
-                
-                dtype = {'code': 'TEXT PRIMARY KEY'}
-                pdData.to_sql('types', self.db.getConnection(), index=True, if_exists='replace', dtype=dtype)
-                
-                status = {'types': int(datetime.now().timestamp())}
-                self.db.idxTableWriteRow(status, 'status_db', 'timestamps', 'all', 'update')
+                writeData = {}
+                for row in responseData:
+                    code = row.pop('code')
+                    writeData['code'] = row
+                self.db.tableWrite('types', writeData, 'code', method='replace')
 
-        lastUpdateTime = updateTime
-        if len(statusDb) > 0: lastUpdateTime = statusDb.loc['all', 'tickers']
-        if forceUpdate or lastUpdateTime <= updateTime:
+            self.db.tableWrite('status_db', {'ALLSYMBOLS': {'types': int(datetime.now().timestamp())}}, 'keySymbol', method='update')
+
+        if lastUpdateTickers == None or lastUpdateTickers <= updateTime:
             log.info('Polygon tickers updating')
-            log.info('Last time updated: %s' % datetime.fromtimestamp(lastUpdateTime))
+            if lastUpdateTickers == None:
+                log.info('First time update')
+            else:
+                log.info('Last time updated: %s' % datetime.fromtimestamp(lastUpdateTickers))
+            
             nextRequestArgs = {
                 'url': 'https://api.polygon.io/v3/reference/tickers',
                 'params': {
@@ -59,12 +69,13 @@ class Tickers(Base):
             while nextRequestArgs != None:
                 response = self.requestCallLimited(nextRequestArgs)
                 if response.headers.get('content-type').startswith('application/json'):
+                    writeData = {}
                     responseData = response.json()
                     if 'results' in responseData:
                         tickersList = responseData['results']
                     else:
                         # happened once , dunno what to do here yet
-                        print('response data has nor results key')
+                        print('response data has no results key')
                         pp(responseData)
                         exit(0)
                     for ticker in tickersList:
@@ -76,7 +87,8 @@ class Tickers(Base):
                             if '.' in lastUpdateUtc: timeformat = '%Y-%m-%dT%H:%M:%S.%fZ'
                             timestamp = int(datetime.strptime(lastUpdateUtc, timeformat) .timestamp())
                         ticker['timestamp'] = timestamp
-                        self.db.idxTableWriteRow(ticker, 'tickers', 'keySymbol', symbol, 'update')
+                        writeData[symbol] = ticker
+                    self.db.tableWrite('tickers', writeData, 'keySymbol', method='update')
                     tickerCount += responseData['count']
                     self.db.commit()
                     log.info('Stocks found so far: %s' % tickerCount)
@@ -86,6 +98,5 @@ class Tickers(Base):
                 else:
                     nextRequestArgs = None
             
-            status = {'tickers': int(datetime.now().timestamp())}
-            self.db.idxTableWriteRow(status, 'status_db', 'timestamps', 'all', 'update')
+            self.db.tableWrite('status_db', {'ALLSYMBOLS': {'tickers': int(datetime.now().timestamp())}}, 'keySymbol', method='update')
 
