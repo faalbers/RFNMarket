@@ -159,28 +159,37 @@ class Database():
         
         cursor.close()
 
-    def tableRead(self, tableName, keyValues=[], columns=[]):
+    def tableRead(self, tableName, keyValues=[], columns=[], handleKeyValues=True):
         # get table info
         tableInfo = self.getTableInfo(tableName)
-        if tableInfo == None or len(tableInfo['primaryKeyColumns']) == 0:
-            return {}
-        keyName = tableInfo['primaryKeyColumns'][0]
+        if tableInfo == None: return {}
+        tableColumns = set(tableInfo['columns']).difference(set(tableInfo['primaryKeyColumns']))
 
-        # handle only columns that exist
-        columns = set(columns).intersection(set(tableInfo['columns']))
+        # if we need to handle key values but there are none, return empty
+        if handleKeyValues:
+            if len(tableInfo['primaryKeyColumns']) > 0:
+                keyColumn = tableInfo['primaryKeyColumns'][0]
+            else:
+                return {}
 
         # get data
         if len(columns) == 0:
             columnsString = '*'
         else:
-            columnsString = ','.join(['[%s]'%keyName]+['[%s]'%x for x in columns])
+            # handle only columns that exist
+            columns = set(columns).intersection(tableColumns)
+            columnsString = ','.join(['[%s]'%x for x in columns])
+            # return empty if no columns to be searched
+            if columnsString == '': return {}
+            if handleKeyValues:
+                columnsString = '[%s],'%keyColumn+columnsString
         execString = "SELECT %s FROM '%s'" % (columnsString, tableName)
 
         execution = None
         cursor = self.connection.cursor()
-        if len(keyValues) > 0:
+        if handleKeyValues and len(keyValues) > 0:
             valHolderString = ','.join(['?']*len(keyValues))
-            execString += " WHERE [%s] IN (%s)" % (keyName, valHolderString)
+            execString += " WHERE [%s] IN (%s)" % (keyColumn, valHolderString)
             execution = cursor.execute(execString, tuple(keyValues))
         else:
             execution = cursor.execute(execString)
@@ -192,18 +201,29 @@ class Database():
         cursor.close()
 
         # retrieve data in dictionary
-        data = {}
+        dataDict = {}
+        dataList = []
         for rowValues in dataValues:
-            rowData = data[rowValues[0]] = {}
-            cIndex = 1
-            for value in rowValues[1:]:
+            if handleKeyValues:
+                rowData = dataDict[rowValues[0]] = {}
+                cIndex = 1
+                rowValues = rowValues[1:]
+            else:
+                rowData = {}
+                cIndex = 0
+            for value in rowValues:
                 if value != None:
                     if dataColumnSqlTypes[cIndex] == 'JSON':
                         value = json.loads(value)
                     rowData[dataColumns[cIndex]] = value
                 cIndex += 1
+            if not handleKeyValues:
+                dataList.append(rowData)
 
-        return data
+        if handleKeyValues:
+            return dataDict
+        else:
+            return dataList
             
     def getTableNames(self):
         cursor = self.connection.cursor()
@@ -279,6 +299,12 @@ class Database():
     def tableColumnExists(self, tableName, columnName):
         return columnName in self.getTableColumnNames(tableName)
 
+    # with dataframes
+    
+    def getTableDF(self, tableName):
+        if not self.tableExists(tableName): return pd.DataFrame()
+        return pd.read_sql("SELECT * FROM '%s'" % tableName, self.connection)
+
     
     # ************* OLD STUFF **********
     # def idxTableReadDataOld(self, tableName, keyValues=[], columns=[]):
@@ -310,10 +336,6 @@ class Database():
     #             data[columnName] = data[columnName].apply(json.loads)
         
     #     return data
-
-    # def getTable(self, tableName):
-    #     if not self.tableExists(tableName): return pd.DataFrame()
-    #     return pd.read_sql("SELECT * FROM '%s'" % tableName, self.connection)
 
     # def idxTableGetKeys(self, tableName):
     #     # check if table exists

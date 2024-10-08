@@ -9,11 +9,11 @@ class Tickers():
         log.initLogger(logLevel=logLevel)
         self.vdata = vault.Data()
 
-    def updateData(self, catalogs, symbols, forceUpdate=False):
-        self.vdata.updateData(catalogs, symbols, forceUpdate=forceUpdate)
+    def updateData(self, catalogs, keyValues, forceUpdate=False):
+        self.vdata.updateData(catalogs, keyValues, forceUpdate=forceUpdate)
 
-    def getData(self, catalogs, symbols=[], update=False, forceUpdate=False):
-        data = self.vdata.getData(catalogs, symbols=symbols, update=update, forceUpdate=forceUpdate)
+    def getData(self, catalogs, keyValues=[], update=False, forceUpdate=False):
+        data = self.vdata.getData(catalogs, keyValues=keyValues, update=update, forceUpdate=forceUpdate)
         return data
    
     def getDataCatalog(self):

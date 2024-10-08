@@ -76,30 +76,30 @@ class TimeSeries(Base):
                     if not lastTimeStamp in settings:
                         settings[lastTimeStamp] = set()
                     settings[lastTimeStamp].add(tsType)
-                elif statusData['latest'] == None:
-                    # it has been tried before, but nothing popped up
-                    # we triy once every year
-                    updateTimestamp = now - annualTimediff
-                    lastTimeStamp = now
-                    if lastTimeStamp <= updateTimestamp:
-                        if not lastTimeStamp in settings:
-                            settings[lastTimeStamp] = set()
-                        settings[lastTimeStamp].add(tsType)
-                else:
-                    # set the update time to check based on naming of tsType
-                    if tsType.startswith('annual'):
-                        updateTimestamp = now - annualTimediff
-                    elif tsType.startswith('quarterly'):
-                        updateTimestamp = now - quarterlyTimediff
-                    elif tsType.startswith('trailing'):
-                        updateTimestamp = now - trailingTimediff
-                    # get last entry timestamp for tsType
-                    lastTimeStamp = dataLastEntry[symbol][tsType]
-                    if lastTimeStamp <= updateTimestamp:
-                        # we need to update with found period timestamp
-                        if not lastTimeStamp in settings:
-                            settings[lastTimeStamp] = set()
-                        settings[lastTimeStamp].add(tsType)
+                # elif statusData['latest'] == None:
+                #     # it has been tried before, but nothing popped up
+                #     # we triy once every year
+                #     updateTimestamp = now - annualTimediff
+                #     lastTimeStamp = now
+                #     if lastTimeStamp <= updateTimestamp:
+                #         if not lastTimeStamp in settings:
+                #             settings[lastTimeStamp] = set()
+                #         settings[lastTimeStamp].add(tsType)
+                # else:
+                #     # set the update time to check based on naming of tsType
+                #     if tsType.startswith('annual'):
+                #         updateTimestamp = now - annualTimediff
+                #     elif tsType.startswith('quarterly'):
+                #         updateTimestamp = now - quarterlyTimediff
+                #     elif tsType.startswith('trailing'):
+                #         updateTimestamp = now - trailingTimediff
+                #     # get last entry timestamp for tsType
+                #     lastTimeStamp = dataLastEntry[symbol][tsType]
+                #     if lastTimeStamp <= updateTimestamp:
+                #         # we need to update with found period timestamp
+                #         if not lastTimeStamp in settings:
+                #             settings[lastTimeStamp] = set()
+                #         settings[lastTimeStamp].add(tsType)
             # if settings is not empty addit to the symbol entry of symbolSettings
             if len(settings) > 0:
                 symbolSettings[symbol] = settings
@@ -161,34 +161,39 @@ class TimeSeries(Base):
 
         if response.headers.get('content-type').startswith('application/json'):
             symbolData = response.json()
-            if symbolData['timeseries']['result'] != None:
-                for typeData in symbolData['timeseries']['result']:
-                    tsType = typeData['meta']['type'][0]
-                    if not tsType in typeData: continue
-                    typeData = typeData[tsType]
-                    writeData = {}
-                    # pp(typeData)
-                    lastTimestamp = 0
-                    if len(typeData) > 0:
-                        # print(tsType)
+            # timeseries not found at one point ...
+            if 'timeseries' in symbolData:
+                if symbolData['timeseries']['result'] != None:
+                    for typeData in symbolData['timeseries']['result']:
+                        tsType = typeData['meta']['type'][0]
+                        if not tsType in typeData: continue
+                        typeData = typeData[tsType]
+                        writeData = {}
                         # pp(typeData)
-                        writeData[symbol] = {}
-                        for entry in typeData:
-                            writeData[symbol]['currency'] = entry['currencyCode']
-                            writeData[symbol][entry['asOfDate']] = entry['reportedValue']['raw']
-                            entryTimestamp = int(datetime.strptime(entry['asOfDate'], '%Y-%m-%d').timestamp())
-                            if entryTimestamp > lastTimestamp: lastTimestamp = entryTimestamp
+                        lastTimestamp = 0
+                        if len(typeData) > 0:
+                            # print(tsType)
+                            # pp(typeData)
+                            writeData[symbol] = {}
+                            for entry in typeData:
+                                writeData[symbol]['currency'] = entry['currencyCode']
+                                writeData[symbol][entry['asOfDate']] = entry['reportedValue']['raw']
+                                entryTimestamp = int(datetime.strptime(entry['asOfDate'], '%Y-%m-%d').timestamp())
+                                if entryTimestamp > lastTimestamp: lastTimestamp = entryTimestamp
+                        
+                        if len(writeData) > 0:
+                            self.db.tableWrite(tsType, writeData, 'keySymbol', method='update')
+                            self.db.tableWrite('lastentry_db', {symbol: {tsType: lastTimestamp}}, 'keySymbol', method='update')
                     
-                    if len(writeData) > 0:
-                        self.db.tableWrite(tsType, writeData, 'keySymbol', method='update')
-                        self.db.tableWrite('lastentry_db', {symbol: {tsType: lastTimestamp}}, 'keySymbol', method='update')
-                    
-        # update status
-        status = {symbol: {}}
-        now = int(datetime.now().timestamp())
-        for tsType in self.tsTypes[symbolIndex]:
-            status[symbol][tsType] = now
-        self.db.tableWrite('status_db', status, 'keySymbol', method='update')
+                # update status, we do not update if 'timeseries' was not present for now
+                status = {symbol: {}}
+                now = int(datetime.now().timestamp())
+                for tsType in self.tsTypes[symbolIndex]:
+                    status[symbol][tsType] = now
+                self.db.tableWrite('status_db', status, 'keySymbol', method='update')
+            else:
+                # we log this for now 
+                log.info("No 'timeseries' in datafor: %s" % symbol)
 
     
     def dbCommit(self):
