@@ -28,7 +28,7 @@ class Data():
         scraperClasses = []
         for catalog in catalogs:
             if catalog in self.__catalog:
-                for dataFrame, dfData in self.__catalog[catalog]['dataFrames'].items():
+                for dataFrame, dfData in self.__catalog[catalog]['sets'].items():
                     for scraperClass, scraperData in dfData['scrapes'].items():
                         scraperClasses.append((scraperClass, list(scraperData.keys())))
 
@@ -160,7 +160,6 @@ class Data():
                 # add incoming shares and substract outgoing shares
                 shares = 0
                 for tParam in sharesInParams:
-                    # values, params = db.getRows(tableName, columns=['shares'], whereColumns=['symbol', 'transaction'], areValues=[symbol, tParam])
                     foundData = dfQuicken[dfQuicken['symbol'] == symbol]
                     foundData = foundData[foundData['transaction'] == tParam]
                     shares += foundData['shares'].sum()
@@ -208,39 +207,36 @@ class Data():
     @staticmethod
     def __addExchangeData(self, data):
         # get all mics and acronyms that have US country code
-        mics = data.pop('mic')['ISO10383_MIC']
-        usexchange = list(set(mics.loc[mics['cc'] == 'US']['exchange'].dropna()))
-        usmics = list(set(mics.loc[mics['cc'] == 'US']['mic'].dropna()))
+        mics = data['mic']['ISO10383_MIC']
+        usacronyms = set()
+        usmics = set()
+        for micRow in mics:
+            if 'cc' in micRow and micRow['cc'] == 'US':
+                usmics.add(micRow['mic'])
+                if 'acronym' in micRow:
+                    usacronyms.add(micRow['acronym'])
 
-        # add country united States to a new column if:
-        # mic is in usmics
-        # exchange is in usexchange
-        
-        # profile = data['profile']['merged']
-        # profile.loc[ profile['mic'].isin(usmics) , 'exchangeCountry' ] = 'United States'
-        # profile.loc[ profile['exchange'].isin(usexchange) , 'exchangeCountry' ] = 'United States'
+        for keyValue, keyData in data['profile'].items():
+            if 'mic' in keyData and keyData['mic'] in usmics:
+                keyData['exchangeCountry'] = 'United States'
+            if 'acronym' in keyData and keyData['acronym'] in usacronyms:
+                keyData['exchangeCountry'] = 'United States'
 
-        return data
+        data.pop('mic')
+
+        return data['profile']
 
     @staticmethod
-    def __getTimeSeries(self, data):
-        dfsTimeTables = {}
-        for tableName, tableData in data.items():
-            scrapeClass = tableData['scrapeClass']
-            dfTableNames = tableData['df']
-            db = self.getScrapeDB(scrapeClass)
-            for symbol, row in dfTableNames.iterrows():
-                symbolTimeTables = {}
-                for tableName in row.index:
-                    tableReference = row[tableName]
-                    dfTable = pd.read_sql("SELECT * FROM '%s'" % tableReference, db.getConnection())
-                    # dfTable['timestamp'] = pd.to_datetime(dfTable['timestamp'], unit='s').dt.tz_localize('US/Pacific')
-                    dfTable.set_index('timestamp', inplace=True)
-                    symbolTimeTables[tableName] = dfTable
-                if len(symbolTimeTables) > 0:
-                    dfsTimeTables[symbol] = symbolTimeTables
-
-        return dfsTimeTables
+    def __getTimeSeries(self, data, tableNames=[], scrapeClass=None):
+        if 'table_reference' not in data: return {}
+        db = self.getScrapeDB(scrapeClass)
+        timeTables = {}
+        for keyValue, keyData in data['table_reference'].items():
+            for tableName in keyData.keys():
+                if not tableName in timeTables:
+                    timeTables[tableName] = {}
+                timeTables[tableName][keyValue] = db.tableRead(keyData[tableName])
+        return timeTables
 
     @staticmethod
     def __mergeTables(self, data, mergeName=None):
@@ -256,17 +252,9 @@ class Data():
             return {mergeName: merged}
     
     @staticmethod
-    def __mergeDataFrames(self, data):
-        dfMerged = pd.DataFrame()
-        for tableName, tableData in data.items():
-            dfTable = tableData['df']
-            dfMerged = pd.merge(dfMerged, dfTable, left_index=True, right_index=True, how='outer')
-        return {'merged': dfMerged}
-        
-        # if 'dropDuplicates' in dfData['postFunctions']:
-        #     for tableName , df in dbdata[dfName].items():
-        #         df.drop_duplicates(inplace=True)
-    
+    def __dropParent(self, data):
+        for parent, pData in data.items(): return pData
+
     __catalog = {
         # columnSets: example: ['keySymbol', 'symbol', False, False, False, False]
         # [column_search, column_name, make_index, check_symbols, make_upper, make_datetime]
@@ -280,41 +268,6 @@ class Data():
         # check_symbols: cross check with symbols
         # make_upper: make this data upper case
         # make_datetime: turn collumn timestamps into Datetime
-        'test': {
-            'info': 'ticker company profile information',
-            'sets': {
-                'statistics': {
-                    'postProcs': [[__mergeTables, {'mergeName': 'quoteSummary'}]],
-                    'scrapes': {
-                        scrape.yahoo.QuoteSummary: {    # scrape class to retrieve data from
-                            'defaultKeyStatistics': {   # table name to be searched
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['trailingEps', 'eps', {}],
-                                    ['forwardEps', 'feps', {}],
-                                    ['pegRatio', 'pratio', {}],
-                                ],
-                            },
-                            'summaryDetail': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['trailingPE', 'trailingPE', {}],
-                                    ['trailingAnnualDividendRate', 'ttmDividendRate', {}],
-                                ],
-                            },
-                            'financialData': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['earningsGrowth', 'earningsGrowth', {}],
-                                    ['revenueGrowth', 'revenueGrowth', {}],
-                                    ['revenuePerShare', 'revenuePerShare', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
-            },
-        },
         'ussymbols': {
             'info': 'ticker traded in us markets',
             'postProcs': [[__findUSExchangeSymbols, {}]],
@@ -327,7 +280,6 @@ class Data():
                                 'keyValues': True,
                                 'columnSettings': [
                                     ['exchangeShortName', 'acronym', {}],
-                                    # ['type', 'type', False, False, True, False],
                                 ],
                             },
                         },
@@ -357,76 +309,35 @@ class Data():
                 },
             },
         },
-        'qtest': {
-            'info': 'just a test, remove latern',
-            'dataFrames': {
-                'statistics': {
-                    'scrapes': {
-                        scrape.yahoo.QuoteSummary: {    # scrape class to retrieve data from
-                            'defaultKeyStatistics': {   # table name to be searched
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['trailingEps', 'trailingEps', False, False, False, False],
-                                    ['forwardEps', 'forwardEps', False, False, False, False],
-                                    ['pegRatio', 'pegRatio', False, False, False, False],
-                                ],
-                            },
-                            'quoteType': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['longName', 'name', False, False, False, False],
-                                    ['quoteType', 'typeQuote', False, False, True, False],
-                                ],
-                            },
-                            'summaryDetail': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['currency', 'currency', False, False, False, False],
-                                ],
-                            },
-                            'assetProfile': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['sectorKey', 'sector', False, False, False, False],
-                                    ['industryKey', 'industry', False, False, False, False],
-                                    ['country', 'country', False, False, False, False],
-                                    ['city', 'city', False, False, False, False],
-                                    ['state', 'state', False, False, False, False],
-                                ],
-                            },
-                        },
-                    },
-                },
-            },
-        },
         'statistics': {
             'info': 'ticker company profile information',
-            'dataFrames': {
+            'postProcs': [[__dropParent, {}]],
+            'sets': {
                 'statistics': {
-                    'postProcs': [__mergeDataFrames],
+                    'postProcs': [[__mergeTables, {}]],
                     'scrapes': {
                         scrape.yahoo.QuoteSummary: {    # scrape class to retrieve data from
                             'defaultKeyStatistics': {   # table name to be searched
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['trailingEps', 'trailingEps', False, False, False, False],
-                                    ['forwardEps', 'forwardEps', False, False, False, False],
-                                    ['pegRatio', 'pegRatio', False, False, False, False],
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['trailingEps', 'trailingEps', {}],
+                                    ['forwardEps', 'forwardEps', {}],
+                                    ['pegRatio', 'pegRatio', {}],
                                 ],
                             },
                             'summaryDetail': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['trailingPE', 'trailingPE', False, False, False, False],
-                                    ['trailingAnnualDividendRate', 'ttmDividendRate', False, False, False, False],
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['trailingPE', 'trailingPE', {}],
+                                    ['trailingAnnualDividendRate', 'ttmDividendRate', {}],
                                 ],
                             },
                             'financialData': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['earningsGrowth', 'earningsGrowth', False, False, False, False],
-                                    ['revenueGrowth', 'revenueGrowth', False, False, False, False],
-                                    ['revenuePerShare', 'revenuePerShare', False, False, False, False],
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['earningsGrowth', 'earningsGrowth', {}],
+                                    ['revenueGrowth', 'revenueGrowth', {}],
+                                    ['revenuePerShare', 'revenuePerShare', {}],
                                 ],
                             },
                         },
@@ -435,21 +346,23 @@ class Data():
             },
         },
         'price': {
-            'info': 'ticker company profile information',
-            'dataFrames': {
+            'info': 'ticker price',
+            'postProcs': [[__dropParent, {}]],
+            'sets': {
                 'price': {
+                    'postProcs': [[__dropParent, {}]],
                     'scrapes': {
                         scrape.yahoo.QuoteSummary: {
                             'price': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['regularMarketPrice', 'price', False, False, False, False],
-                                    ['regularMarketOpen', 'open', False, False, False, False],
-                                    ['regularMarketDayHigh', 'dayHigh', False, False, False, False],
-                                    ['regularMarketDayLow', 'dayLow', False, False, False, False],
-                                    ['regularMarketPreviousClose', 'previousClose', False, False, False, False],
-                                    ['regularMarketTime', 'marketTime', False, False, False, True],
-                                    ['regularMarketVolume', 'volume', False, False, False, False],
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['regularMarketPrice', 'price', {}],
+                                    ['regularMarketOpen', 'open', {}],
+                                    ['regularMarketDayHigh', 'dayHigh', {}],
+                                    ['regularMarketDayLow', 'dayLow', {}],
+                                    ['regularMarketPreviousClose', 'previousClose', {}],
+                                    ['regularMarketTime', 'marketTime', {}],
+                                    ['regularMarketVolume', 'volume', {}],
                                 ],
                             },
                         },
@@ -459,53 +372,53 @@ class Data():
         },
         'profile': {
             'info': 'ticker company profile information',
-            'postProcs': [__addExchangeData],
-            'dataFrames': {
+            'postProcs': [[__addExchangeData, {}]],
+            'sets': {
                 'profile': {
-                    'postProcs': [__mergeDataFrames],
+                    'postProcs': [[__mergeTables, {}]],
                     'scrapes': {
                         scrape.yahoo.QuoteSummary: {
                             'quoteType': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['longName', 'name', False, False, False, False],
-                                    ['quoteType', 'typeQuote', False, False, True, False],
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['longName', 'name', {}],
+                                    ['quoteType', 'typeQuote', {}],
                                 ],
                             },
                             'summaryDetail': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['currency', 'currency', False, False, False, False],
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['currency', 'currency', {}],
                                 ],
                             },
                             'assetProfile': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['sectorKey', 'sector', False, False, False, False],
-                                    ['industryKey', 'industry', False, False, False, False],
-                                    ['country', 'country', False, False, False, False],
-                                    ['city', 'city', False, False, False, False],
-                                    ['state', 'state', False, False, False, False],
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['sectorKey', 'sector', {}],
+                                    ['industryKey', 'industry', {}],
+                                    ['country', 'country', {}],
+                                    ['city', 'city', {}],
+                                    ['state', 'state', {}],
                                 ],
                             },
                         },
                         scrape.fmp.StockList: {
                             'stocklist': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['exchangeShortName', 'exchange', False, False, False, False],
-                                    ['type', 'type', False, False, True, False],
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['exchangeShortName', 'exchange', {}],
+                                    ['type', 'type', {}],
                                 ],
                                 'subTable': None,
                             },
                         },
                         scrape.polygon.Tickers: {
                             'tickers': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['primary_exchange', 'mic', False, False, False, False],
-                                    ['market', 'market', False, False, False, False],
-                                    ['type', 'typeCode', False, False, True, False],
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['primary_exchange', 'mic', {}],
+                                    ['market', 'market', {}],
+                                    ['type', 'typeCode', {}],
                                 ],
                             },
                         },
@@ -515,10 +428,11 @@ class Data():
                     'scrapes': {
                         scrape.saved.Saved: {
                             'ISO10383_MIC': {
-                                'columnSets': [
-                                    ['MIC', 'mic', False, False, False, False],
-                                    ['ACRONYM', 'exchange', False, False, False, False],
-                                    ['ISO COUNTRY CODE (ISO 3166)', 'cc', False, False, False, False],
+                                'keyValues': False,
+                                'columnSettings': [
+                                    ['MIC', 'mic', {}],
+                                    ['ACRONYM', 'acronym', {}],
+                                    ['ISO COUNTRY CODE (ISO 3166)', 'cc', {}],
                                 ],
                             },
                         },
@@ -528,17 +442,19 @@ class Data():
         },
         'quicken': {
             'info': 'quicken data',
-            'dataFrames': {
+            'postProcs': [[__dropParent, {}]],
+            'sets': {
                 'transactions': {
+                    'postProcs': [[__dropParent, {}]],
                     'scrapes': {
                         scrape.saved.Saved: {
                             'QUICKEN_2020': {
-                                'columnSets': [
-                                    ['timestamp', 'timestamp', False, False, False, True],
-                                    ['symbol', 'symbol', False, False, True, False],
-                                    ['transaction', 'transaction', False, False, False, False],
-                                    ['shares', 'shares', False, False, False, False],
-                                    # ['*', 'ex', False, False, False, False],
+                                'keyValues': False,
+                                'columnSettings': [
+                                    ['timestamp', 'timestamp', {}],
+                                    ['symbol', 'symbol', {}],
+                                    ['transaction', 'transaction', {}],
+                                    ['shares', 'shares', {}],
                                 ],
                             },
                         },
@@ -548,16 +464,16 @@ class Data():
         },
         'chart': {
             'info': 'chart data',
-            # 'postProcs': [__getTimeSeries],
-            'dataFrames': {
+            'postProcs': [[__dropParent, {}]],
+            'sets': {
                 'chart': {
-                    'postProcs': [__getTimeSeries],
+                    'postProcs': [[__getTimeSeries, {'scrapeClass': scrape.yahoo.Chart}]],
                     'scrapes': {
                         scrape.yahoo.Chart: {
                             'table_reference': {
-                                'columnSets': [
-                                    ['keySymbol', 'symbol', True, True, True, False],
-                                    ['chart', 'chart', False, False, False, False],
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['chart', 'chart', {}],
                                 ],
                             },
                         },
@@ -567,158 +483,167 @@ class Data():
         },
         'all': {
             'info': 'all avalable database data',
-            'dataFrames': {
-                # 'all_quarterly_financials': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_quarterly_financials': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'all_annual_financials': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_annual_financials': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'all_trailing_financials': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_trailing_financials': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'all_quarterly_balanceSheet': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_quarterly_balanceSheet': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'all_annual_balanceSheet': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_annual_balanceSheet': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'all_quarterly_cashFlow': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_quarterly_cashFlow': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'all_annual_cashFlow': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_annual_cashFlow': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'all_trailing_cashFlow': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_trailing_cashFlow': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
+            'sets': {
+                'all_quarterly_financials': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_quarterly_financials': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_annual_financials': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_annual_financials': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_trailing_financials': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_trailing_financials': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_quarterly_balanceSheet': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_quarterly_balanceSheet': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_annual_balanceSheet': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_annual_balanceSheet': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_quarterly_cashFlow': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_quarterly_cashFlow': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_annual_cashFlow': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_annual_cashFlow': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_trailing_cashFlow': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_trailing_cashFlow': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
                 
-                # 'QuoteSummary': {
-                #     'scrapes': {
-                #         scrape.yahoo.QuoteSummary: {
-                #             'all': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'Chart': {
-                #     'postProcs': [__getTimeSeries],
-                #     'scrapes': {
-                #         scrape.yahoo.Chart: {
-                #             'all': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #             # 'table_reference': {
-                #             #     'columnSets': [
-                #             #         ['keySymbol', 'symbol', True, True, True, False],
-                #             #         ['chart', 'chart', False, False, False, False],
-                #             #     ],
-                #             # },
-                #         },
-                #     },
-                # },
-                # 'StockList': {
-                #     'scrapes': {
-                #         scrape.fmp.StockList: {
-                #             'all': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'Tickers': {
-                #     'scrapes': {
-                #         scrape.polygon.Tickers: {
-                #             'all': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'Saved': {
-                #     'scrapes': {
-                #         scrape.saved.Saved: {
-                #             'all': {
-                #                 'columnSets': [
-                #                     ['*', '', False, False, False, False],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
+                'quotesummary': {
+                    'scrapes': {
+                        scrape.yahoo.QuoteSummary: {
+                            'all': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'charts': {
+                    'postProcs': [[__getTimeSeries, {'scrapeClass': scrape.yahoo.Chart}]],
+                    'scrapes': {
+                        scrape.yahoo.Chart: {
+                            'table_reference': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'stocklist': {
+                    'postProcs': [[__dropParent, {}]],
+                    'scrapes': {
+                        scrape.fmp.StockList: {
+                            'all': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'tickers': {
+                    'postProcs': [[__dropParent, {}]],
+                    'scrapes': {
+                        scrape.polygon.Tickers: {
+                            'all': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'saved': {
+                    'scrapes': {
+                        scrape.saved.Saved: {
+                            'all': {
+                                'keyValues': False,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
             },
         },
     }
