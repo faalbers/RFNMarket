@@ -9,7 +9,7 @@ from ratelimit import limits, sleep_and_retry
 class Base():
     def requestCall(self, requestArgs):
         try:
-            response = self.request.get(**requestArgs)
+            response = self.request.get(requestArgs)
         except Exception:
             log.exception('requestCall')
             return None
@@ -59,7 +59,7 @@ class Base():
                 'proxies': None,
                 'allow_redirects': True,
             }
-            result = req.get(**requestArgs)
+            result = req.get(requestArgs)
             cookie = list(result.cookies)
             if len(cookie) == 0:
                 self.session = None
@@ -67,7 +67,7 @@ class Base():
 
             # get authorization crumb
             requestArgs['url'] = 'https://query1.finance.yahoo.com/v1/test/getcrumb'
-            result = req.get(**requestArgs)
+            result = req.get(requestArgs)
             crumb = result.text
              
             # create config variable and save it

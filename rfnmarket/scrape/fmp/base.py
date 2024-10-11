@@ -6,7 +6,7 @@ from ratelimit import limits, sleep_and_retry
 class Base():
     def requestCall(self, requestArgs):
         try:
-            response = self.request.get(**requestArgs)
+            response = self.request.get(requestArgs)
         except Exception:
             log.exception('requestCall')
             return None

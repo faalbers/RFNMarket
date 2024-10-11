@@ -56,10 +56,8 @@ class Request():
                     log.debug('unknow content type: %s' % type)
         log.debug("-" * 20)
         
-        mytest = 'https://financialmodelingprep.com/api/v3/stock/list?apikey=5fnCoFYnujpfmldsHKPRKeLHWQCKBFLK'
         log.debug('\n*** RESPONSE ***')
         log.debug('\nurl   : %s' % self.__response.url)
-        log.debug('\nurl   : %s' % mytest)
         log.debug('status_code: %s: %s' % (self.__response.status_code, const.STATUS_CODES[self.__response.status_code]['short']))
         for name, value in self.__response.headers.items():
             log.debug('%s%s: %s' % (indent, name, value))
@@ -106,12 +104,12 @@ class Request():
                     log.debug(self.__response.text)
                 else:
                     log.debug('unknow content type: %s' % type)
-        
-        log.debug()
-        log.debug("-" * 20)
     
-    def __init__(self, params={}, headers={}, cookies={}, verbose=False, verboseContent=False, verboseOpenHTML=False):
-        self.__session = requests.Session()
+    def __init__(self, session=None, params={}, headers={}, cookies={}, verbose=False, verboseContent=False, verboseOpenHTML=False):
+        if session == None:
+            self.__session = requests.Session()
+        else:
+            self.__session = session
         # add persisting cookies, params and headers
         self.__session.cookies.update(cookies)
         self.__session.params.update(params)
@@ -121,12 +119,18 @@ class Request():
         self.__verboseContent = verboseContent
         self.__verboseOpenHTML = verboseOpenHTML
 
-    def get(self, url=None,
+    def get(self, requestArgs, verbose=None, verboseContent=None, verboseOpenHTML=None):
+        self.__response = self.__session.get(**requestArgs)
+        self.logResponse(verbose, verboseContent, verboseOpenHTML)
+        return self.__response
+    
+    def getOld(self, url=None,
             params=None, headers=None, cookies=None, auth=None, proxies=None, timeout=None, allow_redirects=False,
             verbose=None, verboseContent=None, verboseOpenHTML=None):
         self.__response = self.__session.get(url, 
                                              params=params, headers=headers, cookies=cookies, auth=auth,
                                              proxies=proxies, timeout=timeout, allow_redirects=allow_redirects)
+        self.__response = self.__session.get(url, params=params)
         self.logResponse(verbose, verboseContent, verboseOpenHTML)
         return self.__response
 
