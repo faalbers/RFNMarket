@@ -1,7 +1,6 @@
-from . import scrape
+from . import scrape, vault, report
 from .utils import log
 from pprint import pp
-from . import vault
 from datetime import datetime
 
 class Tickers():
@@ -21,3 +20,12 @@ class Tickers():
 
     def getQuickenInvestments(self):
         return self.vdata.getQuickenInvestments()
+    
+    def makeQuickenReport(self):
+        quickenData = self.vdata.getQuickenInvestments()
+        qReport = report.Report('quicken')
+
+
+
+
+    

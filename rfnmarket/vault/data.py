@@ -134,53 +134,39 @@ class Data():
             catalog[cat] = data['info']
         return catalog
     
-    def getQuickenInvestments(self, withShares=True, update=False):
-        investments = {}
+    def getQuickenInvestments(self):
         db = self.getScrapeDB(scrape.saved.Saved)
 
-        # get Quicken data
-        dfQuicken = db.getTableDF('QUICKEN_2020')
-        if len(dfQuicken) == 0: return investments
+        quickenData = db.tableRead('QUICKEN_2020', handleKeyValues=False)
 
+        # set in and out transaction
+        symbolTransactions = {}
+        for entry in quickenData:
+            rowData = {}
+            if not 'shares' in entry: continue
+            symbol = entry.pop('symbol')
+            rowData['date'] = pd.Timestamp(datetime.fromtimestamp(entry.pop('timestamp')))
+            if entry['transaction'] in ['Buy', 'ShrsIn', 'ReinvLg', 'ReinvSh', 'ReinvDiv', 'ReinvInt']:
+                rowData['shares'] = entry['shares']
+            else:
+                rowData['shares'] = -entry['shares']
+            rowData['transaction'] = entry['transaction']
+            if 'price' in entry: rowData['price'] = entry['price']
+            if 'costBasis' in entry: rowData['costBasis'] = entry['costBasis']
+            if not symbol in symbolTransactions:
+                symbolTransactions[symbol] = []
+            symbolTransactions[symbol].append(rowData)
 
-        # find all symbols
-        symbols = list(dfQuicken['symbol'])
-        symbols = list(filter(lambda item: not ' ' in item, symbols))
-        symbols = set(symbols)
-
-        # find ingoung params and outgoing params
-        transactionParams = list(dfQuicken['transaction'])
-        sharesInParams = set(list(filter(lambda item: item.startswith('Reinv'), transactionParams))+['Buy', 'ShrsIn'])
-        sharesOutParams = set(['Sell', 'ShrsOut'])
-
-        if withShares:
-            # only get symbols that still are invested
-            symbolsWithShares = set()
-            for symbol in symbols:
-                # add incoming shares and substract outgoing shares
-                shares = 0
-                for tParam in sharesInParams:
-                    foundData = dfQuicken[dfQuicken['symbol'] == symbol]
-                    foundData = foundData[foundData['transaction'] == tParam]
-                    shares += foundData['shares'].sum()
-                for tParam in sharesOutParams:
-                    foundData = dfQuicken[dfQuicken['symbol'] == symbol]
-                    foundData = foundData[foundData['transaction'] == tParam]
-                    shares -= foundData['shares'].sum()
-                
-                # if we still have shares, we keep them
-                if shares > 0.001:
-                    symbolsWithShares.add(symbol)
-
-            symbols = symbolsWithShares
-
-        # get investment data of symbols
-        for symbol in symbols:
-            foundData = dfQuicken[dfQuicken['symbol'] == symbol][['timestamp', 'transaction', 'shares', 'price', 'costBasis']]
-            foundData.set_index('timestamp', inplace=True)
-            investments[symbol] = foundData
+        # get symbol DataFrames that still have shares
+        symbolDfs = {}
+        columns = ['date', 'transaction', 'shares', 'price', 'costBasis']
+        for symbol, trs in symbolTransactions.items():
+            df = pd.DataFrame(trs, columns=columns)
+            sharesOwned = df['shares'].sum()
+            if sharesOwned < 0.001: continue
+            symbolDfs[symbol] = df
         
-        return investments
+        return symbolDfs
 
     # post procs
     @staticmethod
@@ -276,6 +262,23 @@ class Data():
                         scrape.etrade.Quote: {
                             'all': {
                                 'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        'saved': {
+            'info': 'saved database',
+            'sets': {
+                'saved': {
+                    'scrapes': {
+                        scrape.saved.Saved: {
+                            'all': {
+                                'keyValues': False,
                                 'columnSettings': [
                                     ['all', '', {}],
                                 ],
@@ -553,30 +556,30 @@ class Data():
                 #         },
                 #     },
                 # },
-                # 'all_annual_financials': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_annual_financials': {
-                #                 'keyValues': True,
-                #                 'columnSettings': [
-                #                     ['all', '', {}],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'all_trailing_financials': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_trailing_financials': {
-                #                 'keyValues': True,
-                #                 'columnSettings': [
-                #                     ['all', '', {}],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
+                'all_annual_financials': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_annual_financials': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_trailing_financials': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_trailing_financials': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
                 # 'all_quarterly_balanceSheet': {
                 #     'scrapes': {
                 #         scrape.yahoo.TimeSeries: {
@@ -638,82 +641,82 @@ class Data():
                 #     },
                 # },
 
-                'etrade': {
-                    'scrapes': {
-                        scrape.etrade.Quote: {
-                            'all': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
+                # 'etrade': {
+                #     'scrapes': {
+                #         scrape.etrade.Quote: {
+                #             'all': {
+                #                 'keyValues': True,
+                #                 'columnSettings': [
+                #                     ['all', '', {}],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
 
-                'quotesummary': {
-                    'scrapes': {
-                        scrape.yahoo.QuoteSummary: {
-                            'all': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
-                'charts': {
-                    'postProcs': [[__getTimeSeries, {'scrapeClass': scrape.yahoo.Chart}]],
-                    'scrapes': {
-                        scrape.yahoo.Chart: {
-                            'table_reference': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
-                'stocklist': {
-                    'postProcs': [[__dropParent, {}]],
-                    'scrapes': {
-                        scrape.fmp.StockList: {
-                            'all': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
-                'tickers': {
-                    'postProcs': [[__dropParent, {}]],
-                    'scrapes': {
-                        scrape.polygon.Tickers: {
-                            'all': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
-                'saved': {
-                    'scrapes': {
-                        scrape.saved.Saved: {
-                            'all': {
-                                'keyValues': False,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
+                # 'quotesummary': {
+                #     'scrapes': {
+                #         scrape.yahoo.QuoteSummary: {
+                #             'all': {
+                #                 'keyValues': True,
+                #                 'columnSettings': [
+                #                     ['all', '', {}],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'charts': {
+                #     'postProcs': [[__getTimeSeries, {'scrapeClass': scrape.yahoo.Chart}]],
+                #     'scrapes': {
+                #         scrape.yahoo.Chart: {
+                #             'table_reference': {
+                #                 'keyValues': True,
+                #                 'columnSettings': [
+                #                     ['all', '', {}],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'stocklist': {
+                #     'postProcs': [[__dropParent, {}]],
+                #     'scrapes': {
+                #         scrape.fmp.StockList: {
+                #             'all': {
+                #                 'keyValues': True,
+                #                 'columnSettings': [
+                #                     ['all', '', {}],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'tickers': {
+                #     'postProcs': [[__dropParent, {}]],
+                #     'scrapes': {
+                #         scrape.polygon.Tickers: {
+                #             'all': {
+                #                 'keyValues': True,
+                #                 'columnSettings': [
+                #                     ['all', '', {}],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                # 'saved': {
+                #     'scrapes': {
+                #         scrape.saved.Saved: {
+                #             'all': {
+                #                 'keyValues': False,
+                #                 'columnSettings': [
+                #                     ['all', '', {}],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
             },
         },
     }
