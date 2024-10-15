@@ -145,7 +145,7 @@ class Data():
             rowData = {}
             if not 'shares' in entry: continue
             symbol = entry.pop('symbol')
-            rowData['date'] = pd.Timestamp(datetime.fromtimestamp(entry.pop('timestamp')))
+            rowData['date'] = pd.Timestamp(datetime.fromtimestamp(entry.pop('timestamp'))).to_datetime64()
             if entry['transaction'] in ['Buy', 'ShrsIn', 'ReinvLg', 'ReinvSh', 'ReinvDiv', 'ReinvInt']:
                 rowData['shares'] = entry['shares']
             else:
@@ -442,13 +442,19 @@ class Data():
                                 'keyValues': True,
                                 'columnSettings': [
                                     ['longName', 'name', {}],
-                                    ['quoteType', 'typeQuote', {}],
+                                    ['quoteType', 'type', {}],
                                 ],
                             },
                             'summaryDetail': {
                                 'keyValues': True,
                                 'columnSettings': [
                                     ['currency', 'currency', {}],
+                                ],
+                            },
+                            'summaryProfile': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['longBusinessSummary', 'info', {}],
                                 ],
                             },
                             'assetProfile': {
@@ -461,13 +467,19 @@ class Data():
                                     ['state', 'state', {}],
                                 ],
                             },
+                            'fundProfile': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['family', 'fundFamily', {}],
+                                ],
+                            },
                         },
                         scrape.fmp.StockList: {
                             'stocklist': {
                                 'keyValues': True,
                                 'columnSettings': [
                                     ['exchangeShortName', 'exchange', {}],
-                                    ['type', 'type', {}],
+                                    ['type', 'stockType', {}],
                                 ],
                                 'subTable': None,
                             },
@@ -522,11 +534,11 @@ class Data():
                 },
             },
         },
-        'chart': {
+        'timeSeries': {
             'info': 'chart data',
             'postProcs': [[__dropParent, {}]],
             'sets': {
-                'chart': {
+                'timeSeries': {
                     'postProcs': [[__getTimeSeries, {'scrapeClass': scrape.yahoo.Chart}]],
                     'scrapes': {
                         scrape.yahoo.Chart: {
@@ -556,34 +568,10 @@ class Data():
                 #         },
                 #     },
                 # },
-                'all_annual_financials': {
-                    'scrapes': {
-                        scrape.yahoo.TimeSeries: {
-                            'all_annual_financials': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
-                'all_trailing_financials': {
-                    'scrapes': {
-                        scrape.yahoo.TimeSeries: {
-                            'all_trailing_financials': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
-                # 'all_quarterly_balanceSheet': {
+                # 'all_annual_financials': {
                 #     'scrapes': {
                 #         scrape.yahoo.TimeSeries: {
-                #             'all_quarterly_balanceSheet': {
+                #             'all_annual_financials': {
                 #                 'keyValues': True,
                 #                 'columnSettings': [
                 #                     ['all', '', {}],
@@ -592,6 +580,30 @@ class Data():
                 #         },
                 #     },
                 # },
+                # 'all_trailing_financials': {
+                #     'scrapes': {
+                #         scrape.yahoo.TimeSeries: {
+                #             'all_trailing_financials': {
+                #                 'keyValues': True,
+                #                 'columnSettings': [
+                #                     ['all', '', {}],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
+                'all_quarterly_balanceSheet': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_quarterly_balanceSheet': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
                 # 'all_annual_balanceSheet': {
                 #     'scrapes': {
                 #         scrape.yahoo.TimeSeries: {
@@ -654,18 +666,18 @@ class Data():
                 #     },
                 # },
 
-                # 'quotesummary': {
-                #     'scrapes': {
-                #         scrape.yahoo.QuoteSummary: {
-                #             'all': {
-                #                 'keyValues': True,
-                #                 'columnSettings': [
-                #                     ['all', '', {}],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
+                'quotesummary': {
+                    'scrapes': {
+                        scrape.yahoo.QuoteSummary: {
+                            'all': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
                 # 'charts': {
                 #     'postProcs': [[__getTimeSeries, {'scrapeClass': scrape.yahoo.Chart}]],
                 #     'scrapes': {

@@ -1,8 +1,10 @@
 /.venv
 /database
 /docs
+/testscripts
 __pycache__
 *.db
 *.pickle
 *.log
 *.csv
+*.pdf
