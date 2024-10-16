@@ -159,6 +159,24 @@ class Database():
         
         cursor.close()
 
+    def tableWriteDF(self, tableName, df, handleKeyValues=True):
+        sqlDTypes = {}
+        for columnName in df.columns:
+            cType = df[columnName].dtype.type
+            if cType == np.object_:
+                colCheck = df[columnName].dropna()
+                if len(colCheck) == 0: continue
+                cType = type(colCheck.iloc[0])
+            sqlDTypes[columnName] = self.__sqlDataTypesPD[cType]
+        if handleKeyValues:
+            keyName = df.index.name
+            cType = df.index.dtype.type
+            if cType == np.object_:
+                cType = type(df.index[0])
+            keySqlDType = self.__sqlDataTypesPD[cType]
+            sqlDTypes = {**{keyName: '%s PRIMARY KEY' % keySqlDType}, **sqlDTypes}
+        df.to_sql(tableName, self.connection, if_exists='replace', index=handleKeyValues, dtype=sqlDTypes)
+        
     def tableRead(self, tableName, keyValues=[], columns=[], handleKeyValues=True):
         # get table info
         tableInfo = self.getTableInfo(tableName)
