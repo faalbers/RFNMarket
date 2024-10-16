@@ -25,23 +25,42 @@ class Saved():
         self.dataPath = 'database/'
         self.readCSV()
         self.readSPDRS()
+        self.readNASDAQ()
         self.readQuicken()
+
+    def readNASDAQ(self):
+        dfSS = pd.DataFrame(self.db.tableRead('NASDAQ_STOCK_SCREENER', handleKeyValues=False))
+        dfSS = dfSS[['Symbol','Name','Country','Sector','Industry']]
+        dfSS.set_index('Symbol', verify_integrity=True, inplace=True)
+        dfSS.index.name = 'keySymbol'
+        dfSS['type'] = 'STOCK'
+        
+        dfETFS = pd.DataFrame(self.db.tableRead('NASDAQ_ETFS_SCREENER', handleKeyValues=False))
+        dfETFS = dfETFS[['SYMBOL','NAME']]
+        dfETFS.set_index('SYMBOL', verify_integrity=True, inplace=True)
+        dfETFS.index.name = 'keySymbol'
+        dfETFS.rename(columns={'NAME': 'Name'}, inplace=True)
+        dfETFS['type'] = 'ETF'
+
+        df = pd.concat([dfSS, dfETFS], verify_integrity=True)
+        df.sort_index(inplace=True)
+        self.db.tableWriteDF('NASDAQ', df)
 
     def readSPDRS(self):
         sectors = {
             'XLB': 'Materials',
             'XLC': 'Communication Services',
-            'XLE': 'Energie',
-            'XLF': 'Financials',
+            'XLE': 'Energy',
+            'XLF': 'Financial Services',
             'XLI': 'Industrials',
             'XLK': 'Technology',
             'XLP': 'Consumer Staples',
             'XLRE': 'Real Estate',
             'XLU': 'Utilities',
-            'XLV': 'Health Care',
+            'XLV': 'Healthcare',
             'XLY': 'Consumer Discretionary',
         }
-        columnRename = {'Symbol': 'keySymbol', 'Index Weight': 'SP500weight'}
+        columnRename = {'Symbol': 'keySymbol', 'Company Name': 'Name', 'Index Weight': 'SP500weight'}
         tableNames = self.db.getTableNames()
         tableNames = fnmatch.filter(self.db.getTableNames(), 'SPDRS_*')
         if len(tableNames) == 0: return

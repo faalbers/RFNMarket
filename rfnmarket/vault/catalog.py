@@ -29,6 +29,9 @@ class Catalog():
             if 'acronym' in keyData and keyData['acronym'] in usacronyms:
                 keyValues.add(keyValue)
         
+        keyValues = keyValues.union(data['other']['NASDAQ'].keys())
+        keyValues = keyValues.union(data['other']['SPDRS'].keys())
+
         return list(keyValues)
 
     @staticmethod
@@ -98,13 +101,13 @@ class Catalog():
     __catalog = {
         'industry': {
             'info': 'industry and sector info',
-            # 'postProcs': [[__dropParent, {}]],
+            'postProcs': [[__dropParent, {}]],
             'sets': {
-                'eps': {
-                    # 'postProcs': [[__mergeTables, {}]],
+                'industry': {
+                    'postProcs': [[__mergeTables, {}]],
                     'scrapes': {
                         scrape.yahoo.QuoteSummary: {
-                            'equity': {
+                            'assetProfile': {
                                 'keyValues': True,
                                 'columnSettings': [
                                     ['industry', 'industry', {}],
@@ -113,6 +116,21 @@ class Catalog():
                                     ['sector', 'sector', {}],
                                     ['sectorKey', 'sectorKey', {}],
                                     ['sectorDisp', 'sectorDisp', {}],
+                                ],
+                            },
+                        },
+                        scrape.saved.Saved: {
+                            'SPDRS': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['SP500sector', 'SP500sector', {}],
+                                ],
+                            },
+                            'NASDAQ': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['Industry', 'NASDAQindustry', {}],
+                                    ['Sector', 'NASDAQsector', {}],
                                 ],
                             },
                         },
@@ -194,6 +212,24 @@ class Catalog():
                                     ['MIC', 'mic', {}],
                                     ['ACRONYM', 'acronym', {}],
                                     ['ISO COUNTRY CODE (ISO 3166)', 'cc', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'other': {
+                    'scrapes': {
+                        scrape.saved.Saved: {
+                            'NASDAQ': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['Name', 'Name', {}],
+                                ],
+                            },
+                            'SPDRS': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['Name', 'Name', {}],
                                 ],
                             },
                         },
