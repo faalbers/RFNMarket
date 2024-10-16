@@ -1,4 +1,4 @@
-import glob, os
+import glob, os, fnmatch
 import pandas as pd
 import sqlite3
 from pathlib import Path
@@ -14,13 +14,56 @@ class Saved():
         if tableName == 'all':
             db = database.Database(Saved.dbName)
             return db.getTableNames()
+        elif tableName.endswith('*'):
+            db = database.Database(Saved.dbName)
+            tableNames = db.getTableNames()
+            return fnmatch.filter(tableNames, tableName)
         return [tableName]
 
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         self.db = database.Database(self.dbName)
         self.dataPath = 'database/'
         self.readCSV()
+        self.readSPDRS()
         self.readQuicken()
+
+    def readSPDRS(self):
+        sectors = {
+            'XLB': 'Materials',
+            'XLC': 'Communication Services',
+            'XLE': 'Energie',
+            'XLF': 'Financials',
+            'XLI': 'Industrials',
+            'XLK': 'Technology',
+            'XLP': 'Consumer Staples',
+            'XLRE': 'Real Estate',
+            'XLU': 'Utilities',
+            'XLV': 'Health Care',
+            'XLY': 'Consumer Discretionary',
+        }
+        columnRename = {'Symbol': 'keySymbol', 'Index Weight': 'SP500weight'}
+        tableNames = self.db.getTableNames()
+        tableNames = fnmatch.filter(self.db.getTableNames(), 'SPDRS_*')
+        if len(tableNames) == 0: return
+        dfAll = pd.DataFrame()
+        for tableName in tableNames:
+            sector = sectors[tableName.split('_')[1]]
+            sData = self.db.tableRead(tableName, handleKeyValues=False)
+            cMatch = sData[0]
+            rows = []
+            for row in sData[1:]:
+                newRow = {}
+                for param, value in row.items():
+                    if cMatch[param] in columnRename:
+                        newRow[columnRename[cMatch[param]]] = value
+                newRow['SP500weight'] = float(newRow['SP500weight'].rstrip('%'))/100.0
+                newRow['SP500sector'] = sector
+                rows.append(newRow)
+            df = pd.DataFrame(rows)
+            df.set_index('keySymbol', verify_integrity=True, inplace=True)
+            dfAll = pd.concat([dfAll, df], verify_integrity=True)
+        dfAll.sort_index(inplace=True)
+        self.db.tableWriteDF('SPDRS', dfAll)
 
     def readQuicken(self):
         # get status first
