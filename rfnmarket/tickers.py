@@ -1,5 +1,5 @@
 from . import scrape, vault, report
-from .utils import log
+from .utils import log, utils
 from pprint import pp
 from datetime import datetime
 
@@ -33,7 +33,13 @@ class Tickers():
         qReport = report.Report()
         qReport.makeQuickenReport(quickenData, profileData, chartData)
 
-
+    def createDataOverview(self, fileName):
+        symbols = self.getData(['ussymbols'])['ussymbols']
+        data = self.getData(['all'], symbols[:1000])
+        allData = {}
+        utils.dataStructure(data, allData, set(symbols))
+        with open(fileName, 'w', encoding="utf-8") as f:
+            utils.printHierachy(allData, f, 0)
 
 
     
