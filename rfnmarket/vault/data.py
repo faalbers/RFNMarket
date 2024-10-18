@@ -11,21 +11,21 @@ class Data():
         self.catalog = Catalog()
         self.databases = {}
     
-    def getScrapeDB(self, scrapeClass):
+    def __getScrapeDB(self, scrapeClass):
         if not scrapeClass in self.databases:
             self.databases[scrapeClass] = database.Database(scrapeClass.dbName)
         return self.databases[scrapeClass]
 
-    def closeScrapeDB(self, scrapeClass):
+    def __closeScrapeDB(self, scrapeClass):
         if scrapeClass in self.databases:
             self.databases.pop(scrapeClass)
     
-    def closeAllScrapeDB(self):
+    def __closeAllScrapeDB(self):
         scrapeClasses = list(self.databases.keys())
         for scrapeClass in scrapeClasses:
-            self.closeScrapeDB(scrapeClass)
+            self.__closeScrapeDB(scrapeClass)
 
-    def updateData(self, catalogs=[], keyValues=[], forceUpdate=False):
+    def update(self, catalogs=[], keyValues=[], forceUpdate=False):
         # gather scrape classes and needed tables
         scraperClasses = []
         for catalog in catalogs:
@@ -44,7 +44,7 @@ class Data():
             scraperClass(keyValues, tables=tableNames, forceUpdate=forceUpdate)
     
     def getData(self, catalogs=[], keyValues=[], update=False, forceUpdate=False, catalogDB=None):
-        if update or forceUpdate: self.updateData(catalogs, keyValues, forceUpdate=forceUpdate)
+        if update or forceUpdate: self.update(catalogs, keyValues, forceUpdate=forceUpdate)
         mainData = {}
         for catalog in catalogs:
             if catalogDB != None:
@@ -58,7 +58,7 @@ class Data():
                 tablesData = {}
                 for scrapeClass, scrapeData in setData['scrapes'].items():
                     # access scrape database
-                    db = self.getScrapeDB(scrapeClass)
+                    db = self.__getScrapeDB(scrapeClass)
                     for tableName, tableData in scrapeData.items():
                         scrapeTableNames = scrapeClass.getTableNames(tableName)
                         handleKeyValues = tableData['keyValues']
@@ -128,17 +128,17 @@ class Data():
             else:
                 mainData[catalog] = setsData
                     
-        self.closeAllScrapeDB()
+        self.__closeAllScrapeDB()
         return mainData
     
-    def getCatalog(self):
-        catalog = {}
-        for cat, data in self.__catalog.items():
-            catalog[cat] = data['info']
-        return catalog
+    # def getCatalog(self):
+    #     catalog = {}
+    #     for cat, data in self.__catalog.items():
+    #         catalog[cat] = data['info']
+    #     return catalog
     
     def getQuickenInvestments(self):
-        db = self.getScrapeDB(scrape.saved.Saved)
+        db = self.__getScrapeDB(scrape.saved.Saved)
 
         quickenData = db.tableRead('QUICKEN_2020', handleKeyValues=False)
 
