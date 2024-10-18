@@ -36,6 +36,8 @@ class Saved():
         dfSS['type'] = 'STOCK'
         
         dfETFS = pd.DataFrame(self.db.tableRead('NASDAQ_ETFS_SCREENER', handleKeyValues=False))
+        # remove last row
+        dfETFS.drop(dfETFS.tail(1).index,inplace=True)
         dfETFS = dfETFS[['SYMBOL','NAME']]
         dfETFS.set_index('SYMBOL', verify_integrity=True, inplace=True)
         dfETFS.index.name = 'keySymbol'
@@ -44,6 +46,7 @@ class Saved():
 
         df = pd.concat([dfSS, dfETFS], verify_integrity=True)
         df.sort_index(inplace=True)
+        df = df[df.index.notnull()]
         self.db.tableWriteDF('NASDAQ', df)
 
     def readSPDRS(self):
@@ -51,9 +54,9 @@ class Saved():
             'XLB': 'Materials',
             'XLC': 'Communication Services',
             'XLE': 'Energy',
-            'XLF': 'Financial Services',
+            'XLF': 'Financials',
             'XLI': 'Industrials',
-            'XLK': 'Technology',
+            'XLK': 'Information Technology',
             'XLP': 'Consumer Staples',
             'XLRE': 'Real Estate',
             'XLU': 'Utilities',
