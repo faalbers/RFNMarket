@@ -2,6 +2,7 @@ from gics import GICS as GICSP
 from pprint import pp
 
 # https://www.msci.com/our-solutions/indexes/gics
+# https://www.spglobal.com/marketintelligence/en/documents/112727-gics-mapbook_2018_v3_letter_digitalspreads.pdf
 
 class SubIndustry():
     def __init__(self, name, data):
@@ -71,6 +72,9 @@ class GICS():
     def renameIndustryGroup(name):
         rename = {
             'Telecom Services': 'Telecommunication Services',
+            'Power Generation': 'Utilities',
+            'Real Estate Investment Trusts': 'Equity Real Estate Investment Trusts (REITs)',
+            'Plastic Products': 'Materials',
         }
         if name in rename:
             return rename[name]
@@ -81,6 +85,9 @@ class GICS():
         rename = {
             'Packaging & Containers': 'Containers & Packaging',
             'Infrastructure Operations': 'IT Services',
+            'Major Chemicals': 'Chemicals',
+            'Major Banks': 'Banks',
+            'Finance Companies': 'Financial Services',
         }
         if name in rename:
             return rename[name]
@@ -93,15 +100,21 @@ class GICS():
             'Airports & Air Services': 'Airport Services',
             
             'Auto Manufacturers': 'Automobile Manufacturers',
+            'Auto Manufacturing': 'Automobile Manufacturers',
+            'Motor Vehicles': 'Automobile Manufacturers',
             'Auto & Truck Dealerships': 'Automotive Retail',
+            'Automotive Aftermarket': 'Automotive Retail',
             'Auto Parts': 'Automotive Parts & Equipment ',
+            'Auto Parts:O.E.M.': 'Automotive Parts & Equipment ',
 
             'Banks - Regional': 'Regional Banks',
+            'Commercial Banks': 'Regional Banks',
             'Banks - Diversified': 'Diversified Banks',
 
             'Beverages - Brewers': 'Brewers',
             'Beverages - Non-Alcoholic': 'Soft Drinks & Non-alcoholic Beverages',
             'Beverages - Wineries & Distilleries': 'Distillers & Vintners',
+            'Beverages (Production/Distribution)': 'Soft Drinks & Non-alcoholic Beverages',
             
             'Building Materials': 'Building Products',
             'Business Equipment & Supplies': 'Office Services & Supplies',
@@ -110,8 +123,11 @@ class GICS():
             'Consulting Services': 'Research & Consulting Services',
             'Credit Services': 'Consumer Finance',
             'Department Stores': 'Consumer Staples Merchandise Retail ',
+            'Department/Specialty Retail Stores': 'Consumer Staples Merchandise Retail ',
             'Discount Stores': 'Other Specialty Retail',
+            'Other Specialty Stores': 'Other Specialty Retail',
             'Electronic Gaming & Multimedia': 'Consumer Electronics',
+            'Consumer Electronics/Appliances': 'Consumer Electronics',
             'Electronics & Computer Distribution': 'Technology Distributors',
             'Farm & Heavy Construction Machinery': 'Agricultural & Farm Machinery',
             'Grocery Stores': 'Food Retail',
@@ -135,6 +151,7 @@ class GICS():
             'Pharmaceutical Retailers': 'Drug Retail',
             'Paper & Paper Products': 'Paper Products',
             'Other Precious Metals & Mining': 'Precious Metals & Minerals',
+            'Precious Metals': 'Precious Metals & Minerals',
             'Residential Construction': 'Construction & Engineering',
             'Security & Protection Services': 'Security & Alarm Services',
             'Semiconductor Equipment & Materials': 'Semiconductor Materials & Equipment',
@@ -142,6 +159,7 @@ class GICS():
             'Internet Content & Information': 'Internet Services & Infrastructure',
             'Internet Retail': 'Computer &Electronics Retail',
             'Metal Fabrication': 'Steel',
+            'Metal Fabrications': 'Steel',
             'Software - Infrastructure': 'Internet Services & Infrastructure',
             'Lumber & Wood Production': 'Forest Products',
             'Luxury Goods': 'Apparel, Accessories & Luxury Goods',
@@ -149,11 +167,33 @@ class GICS():
             'Trucking': 'Automobile Manufacturers',
             'Recreational Vehicles': 'Automobile Manufacturers',
             'Personal Services': 'Specialized Consumer Services',
+            'Consumer Specialties': 'Housewares & Specialties',
+            'Finance: Consumer Services': 'Consumer Finance',
+            'Finance/Investors Services': 'Investment Banking & Brokerage',
+            'Mining & Quarrying of Nonmetallic Minerals (No Fuels)': 'Precious Metals & Minerals',
+            'Telecommunications Equipment': 'Communications Equipment',
+            'Specialty Insurers': 'Multi-line Insurance',
+            'Other Consumer Services': 'Specialized Consumer Services',
+            'Misc Health and Biotechnology Services': 'Life Sciences Tools & Services',
+            'Medical/Nursing Services': 'Health Care Facilities',
+            'Medical/Dental Instruments': 'Health Care Equipment',
+            'Life Insurance': 'Life & Health Insurance',
+            'Investment Bankers/Brokers/Service': 'Investment Banking & Brokerage',
+            'Investment Managers': 'Asset Management & Custody Banks',
+            'Industrial Machinery/Components': 'Industrial Machinery & Supplies & Components',
+            'Property-Casualty Insurers': 'Property & Casualty Insurance',
+            'EDP Services': 'Data Processing & Outsourced Services ',
+            'Computer Communications Equipment': 'Communications Equipment',
+            'Cable & Other Pay Television Services': 'Cable &Satellite',
+            'Catalog/Specialty Distribution': 'Other Specialty Retail',
+            'Newspapers/Magazines': 'Publishing',
+            'Electrical Products': 'Electrical Components & Equipment',
+            'Specialty Foods': 'Food Distributors',
+            'Blank Checks': 'Paper Products',
 
             'Other Industrial Metals & Mining': 'Diversified Metals & Mining',
             'Asset Management': 'Asset Management & Custody Banks',
             'Conglomerates': 'Industrial Conglomerates',
-            'Software - Application': 'Application Software',
             'Diagnostics & Research': 'Health Care Technology',
             'Engineering & Construction': 'Construction & Engineering',
             'Information Technology Services': 'IT Consulting & Other Services',
@@ -173,6 +213,12 @@ class GICS():
             'Specialty Business Services': 'Diversified Support Services',
             'Travel Services': 'Hotels, Resorts & Cruise Lines',
             'Packaged Foods': 'Packaged Foods & Meats',
+            'Hotels/Resorts': 'Hotels, Resorts & Cruise Lines',
+            'Steel/Iron Ore': 'Steel',
+            'Metal Mining': 'Steel',
+            'Radio And Television Broadcasting And Communications Equipment': 'Communications Equipment',
+            'Movies/Entertainment': 'Movies & Entertainment',
+            'Accident &Health Insurance': 'Life & Health Insurance',
 
             'Pollution & Treatment Controls': 'Environmental & Facilities Services',
             'Waste Management': 'Environmental & Facilities Services',
@@ -182,6 +228,7 @@ class GICS():
 
             'Coking Coal': 'Coal & Consumable Fuels',
             'Thermal Coal': 'Coal & Consumable Fuels',
+            'Coal Mining': 'Coal & Consumable Fuels',
 
             'Insurance - Life': 'Life & Health Insurance',
             'Insurance - Diversified': 'Multi-line Insurance',
@@ -200,9 +247,13 @@ class GICS():
             'Oil & Gas Integrated': 'Integrated Oil & Gas',
             'Oil & Gas E&P': 'Oil & Gas Exploration & Production',
             'Oil & Gas Midstream': 'Oil & Gas Storage & Transportation',
+            'Oil & Gas Production': 'Oil & Gas Exploration & Production',
             
             'Real Estate - Development': 'Real Estate Development',
             'Real Estate - Diversified': 'Diversified Real Estate Activities',
+
+            'Software - Application': 'Application Software',
+            'Computer Software: Prepackaged Software': 'Application Software',
 
             'REIT - Diversified': 'Diversified REITs',
             'REIT - Mortgage': 'Mortgage REITs',
@@ -216,10 +267,17 @@ class GICS():
 
             'Utilities - Diversified': 'Multi-Utilities',
             'Utilities - Regulated Electric': 'Electric Utilities',
+            'Electric Utilities: Central': 'Electric Utilities',
             'Utilities - Regulated Gas': 'Gas Utilities',
             'Utilities - Regulated Water': 'Water Utilities',
             'Utilities - Renewable': 'Renewable Electricity ',
             'Utilities - Independent Power Producers': 'Independent Power Producers & Energy Traders',
+            'Natural Gas Distribution': 'Gas Utilities',
+
+            'Biotechnology: Biological Products (No Diagnostic Substances)': 'Biotechnology',
+            'Biotechnology: Commercial Physical & Biological Resarch': 'Biotechnology',
+            'Biotechnology: In Vitro & In Vivo Diagnostic Substances': 'Life Sciences Tools & Services',
+            'Biotechnology: Pharmaceutical Preparations': 'Pharmaceuticals',
         }
         if name in rename:
             return rename[name]
