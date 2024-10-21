@@ -137,37 +137,4 @@ class Data():
     #         catalog[cat] = data['info']
     #     return catalog
     
-    def getQuickenInvestments(self):
-        db = self.__getScrapeDB(scrape.saved.Saved)
-
-        quickenData = db.tableRead('QUICKEN_2020', handleKeyValues=False)
-
-        # set in and out transaction
-        symbolTransactions = {}
-        for entry in quickenData:
-            rowData = {}
-            if not 'shares' in entry: continue
-            symbol = entry.pop('symbol')
-            rowData['date'] = pd.Timestamp(datetime.fromtimestamp(entry.pop('timestamp'))).to_datetime64()
-            if entry['transaction'] in ['Buy', 'ShrsIn', 'ReinvLg', 'ReinvSh', 'ReinvDiv', 'ReinvInt']:
-                rowData['shares'] = entry['shares']
-            else:
-                rowData['shares'] = -entry['shares']
-            rowData['transaction'] = entry['transaction']
-            if 'price' in entry: rowData['price'] = entry['price']
-            if 'costBasis' in entry: rowData['costBasis'] = entry['costBasis']
-            if not symbol in symbolTransactions:
-                symbolTransactions[symbol] = []
-            symbolTransactions[symbol].append(rowData)
-
-        # get symbol DataFrames that still have shares
-        symbolDfs = {}
-        columns = ['date', 'transaction', 'shares', 'price', 'costBasis']
-        for symbol, trs in symbolTransactions.items():
-            df = pd.DataFrame(trs, columns=columns)
-            sharesOwned = df['shares'].sum()
-            if sharesOwned < 0.001: continue
-            symbolDfs[symbol] = df
-        
-        return symbolDfs
 
