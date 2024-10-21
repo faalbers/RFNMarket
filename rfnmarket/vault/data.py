@@ -11,19 +11,19 @@ class Data():
         self.catalog = Catalog()
         self.databases = {}
     
-    def __getScrapeDB(self, scrapeClass):
+    def getScrapeDB(self, scrapeClass):
         if not scrapeClass in self.databases:
             self.databases[scrapeClass] = database.Database(scrapeClass.dbName)
         return self.databases[scrapeClass]
 
-    def __closeScrapeDB(self, scrapeClass):
+    def closeScrapeDB(self, scrapeClass):
         if scrapeClass in self.databases:
             self.databases.pop(scrapeClass)
     
-    def __closeAllScrapeDB(self):
+    def closeAllScrapeDB(self):
         scrapeClasses = list(self.databases.keys())
         for scrapeClass in scrapeClasses:
-            self.__closeScrapeDB(scrapeClass)
+            self.closeScrapeDB(scrapeClass)
 
     def update(self, catalogs=[], keyValues=[], forceUpdate=False):
         # gather scrape classes and needed tables
@@ -58,7 +58,7 @@ class Data():
                 tablesData = {}
                 for scrapeClass, scrapeData in setData['scrapes'].items():
                     # access scrape database
-                    db = self.__getScrapeDB(scrapeClass)
+                    db = self.getScrapeDB(scrapeClass)
                     for tableName, tableData in scrapeData.items():
                         scrapeTableNames = scrapeClass.getTableNames(tableName)
                         handleKeyValues = tableData['keyValues']
@@ -128,7 +128,7 @@ class Data():
             else:
                 mainData[catalog] = setsData
                     
-        self.__closeAllScrapeDB()
+        self.closeAllScrapeDB()
         return mainData
     
     # def getCatalog(self):

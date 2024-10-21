@@ -134,12 +134,8 @@ class Tickers():
 
     def makeQuickenReport(self):
         quickenData = self.getQuickenInvestments()
-        profileData = self.vdata.getData(['profile'], keyValues=list(quickenData.keys()))['profile']
-        # with open('profileData.txt', 'w', encoding='utf-8') as f:
-        #     pp(profileData, f)
+        profileData = self.getProfile(list(quickenData.keys()))
         chartData = self.vdata.getData(['timeSeries'], keyValues=list(quickenData.keys()), update=True)['timeSeries']['chart']
-        # with open('chartData.txt', 'w', encoding='utf-8') as f:
-        #     pp(chartData, f)
 
         qReport = report.Report()
         qReport.makeQuickenReport(quickenData, profileData, chartData)

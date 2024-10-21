@@ -93,6 +93,7 @@ class Report():
                 self.__portraitTemplate,
             ]
         )
+        closeType = 'adjclose'
         story = []
         for symbol, dfQuicken in quickenData.items():
             if not symbol in profileData: continue
@@ -136,7 +137,7 @@ class Report():
             sharesLeft = float(sharesIn['shares'].sum() - sharesOut['shares'].sum())
             chart = pd.DataFrame(chartData[symbol]).T.iloc[-1]
             date = str(datetime.fromtimestamp(int(chart.name)))
-            price = float(chart['adjclose'])
+            price = float(chart[closeType])
             worth = sharesLeft * price
             columns = ['last close date', 'shares', 'price', 'worth']
             row = {'last close date': date, 'shares': sharesLeft, 'price': price, 'worth': worth}
@@ -148,8 +149,8 @@ class Report():
             chartFirst = chartAll.loc[fromTS:]
 
             # get price chart and normalize
-            dfPrice = chartFirst[['adjclose']].copy()
-            dfPrice['adjclose'] = dfPrice['adjclose'].div(dfPrice.iloc[0]['adjclose'])
+            dfPrice = chartFirst[[closeType]].copy()
+            dfPrice[closeType] = dfPrice[closeType].div(dfPrice.iloc[0][closeType])
             dfPrice.index = pd.to_datetime(dfPrice.index, unit='s').date
             dfPrice.index = dfPrice.index.astype(str) # need to do this for plotting to work correctly
 
@@ -165,9 +166,9 @@ class Report():
                         if len(qTrDate) == 0: continue
                         sharesAtTime = qTrDate['shares'].sum()
                         divValue = sharesAtTime * values['dividend']
-                        divShares = divValue / values['adjclose']
+                        divShares = divValue / values[closeType]
                         row = {'date': date, 'div / share': values['dividend'], 'shares': sharesAtTime,
-                            'div shares': divShares, 'price': values['adjclose'], 'div value': divValue}
+                            'div shares': divShares, 'price': values[closeType], 'div value': divValue}
                         divRows.append(row)
             dfDivQuicken = dfTransactions[dfTransactions['transaction'].isin(['ReinvDiv'])]
             dfDivPortfolio = pd.DataFrame(divRows)
@@ -179,7 +180,7 @@ class Report():
                 dfDiviAll = chartAll.loc[fromTS:].dropna(subset = ['dividend'])
                 fromTS = int(firstDate.timestamp())
                 dfDiviAll['owned'] = dfDiviAll.index >= fromTS
-                dfDiviAll['divpercent'] = (dfDiviAll['dividend'] / dfDiviAll['adjclose']) * 100.0
+                dfDiviAll['divpercent'] = (dfDiviAll['dividend'] / dfDiviAll[closeType]) * 100.0
                 dfDiviAll.index = pd.to_datetime(dfDiviAll.index, unit='s').date
                 dfDiviAll.index = dfDiviAll.index.astype(str)
 
@@ -204,7 +205,7 @@ class Report():
 
             # plot price
             chartFig, ax = plt.subplots(dpi=300, figsize=(8, 4))
-            dfPrice.plot(y='adjclose', kind='line', ax=ax, color='blue', linewidth=1, label='_hidden')
+            dfPrice.plot(y=closeType, kind='line', ax=ax, color='blue', linewidth=1, label='_hidden')
             ax.set_ylabel('price')
             ax.axhline(y=1.0, color='green', linestyle='--')
             # plt.xticks(rotation=45, fontsize=6)

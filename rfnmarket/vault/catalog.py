@@ -36,28 +36,6 @@ class Catalog():
         return list(keyValues)
 
     @staticmethod
-    def __addExchangeData(self, data):
-        # get all mics and acronyms that have US country code
-        mics = data['mic']['ISO10383_MIC']
-        usacronyms = set()
-        usmics = set()
-        for micRow in mics:
-            if 'cc' in micRow and micRow['cc'] == 'US':
-                usmics.add(micRow['mic'])
-                if 'acronym' in micRow:
-                    usacronyms.add(micRow['acronym'])
-
-        for keyValue, keyData in data['profile'].items():
-            if 'mic' in keyData and keyData['mic'] in usmics:
-                keyData['exchangeCountry'] = 'United States'
-            if 'acronym' in keyData and keyData['acronym'] in usacronyms:
-                keyData['exchangeCountry'] = 'United States'
-
-        data.pop('mic')
-
-        return data['profile']
-
-    @staticmethod
     def __getTimeSeries(self, data, tableNames=[], scrapeClass=None):
         if 'table_reference' not in data: return {}
         db = self.getScrapeDB(scrapeClass)
