@@ -29,6 +29,8 @@ class QuoteSummary(Base):
             'quoteType': 60*60*24*31*3,
             'assetProfile': 60*60*24*31*3,
             'fundProfile': 60*60*24*31*3,
+            'summaryProfile': 60*60*24*31*3,
+            'fundProfile': 60*60*24*31*3,
         }
         return moduleUpdatePeriods
     

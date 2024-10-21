@@ -355,29 +355,3 @@ class GICS():
 
     def getCodeInfo(self, code):
         return self.definition[str(code)]
-    # def getIndustryGroups(self, sector=None):
-    #     industryGroups = set()
-    #     if sector == None:
-    #         for sector, sectorData in self.__gicsData.items():
-    #             industryGroups = industryGroups.union(sectorData['industryGroups'].keys())
-    #     elif sector in self.__gicsData:
-    #         industryGroups = set(self.__gicsData[sector]['industryGroups'].keys())
-    #     else:
-    #         raise ValueError('unknown sector: %s' % sector)
-    #     industryGroups = list(industryGroups)
-    #     industryGroups.sort()
-    #     return industryGroups
-    
-    # def getNames(self, sector, industryGroup=None, industry=None):
-    #     return None
-    #     if not sector in self.__gicsData:
-    #         sector = self.__renameSector(sector)
-    #     if industry == None:
-    #         return {'sector': sector, 'industry': None}
-    #     for industryGroup in self.getIndustryGroups(sector):
-    #         for industry in self.getIndustryGroups(sector, industryGroup):
-    #             pass
-    #         print(self.getIndustryGroups(sector))
-    #         print(industry)
-    #         return None
-    #     return {'sector': sector, 'industry': None}

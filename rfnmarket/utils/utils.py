@@ -32,18 +32,18 @@ def dataStructure(readData, writeData, keyValues):
             break
 
 # print data hierachy
-def printHierachy(data, f, level):
+def __printHierachy(data, f, level):
     tab = '    '
     if isinstance(data, dict):
         f.write('%s{\n' % (tab*level))
         for key, keyData in data.items():
             f.write("%s'%s':\n" % (tab*(level+1), key))
-            printHierachy(keyData, f, level+1)
+            __printHierachy(keyData, f, level+1)
         f.write('%s}\n' % (tab*level))
     elif isinstance(data, list):
         f.write('%s[\n' % (tab*level))
         for listData in data:
-            printHierachy(listData, f, level+1)
+            __printHierachy(listData, f, level+1)
         f.write('%s]\n' % (tab*level))
     else:
         if isinstance(data, str):
@@ -51,3 +51,6 @@ def printHierachy(data, f, level):
         else:
             f.write("%s%s\n" % (tab*(level+1), data))
 
+def printHierachy(data, fileName):
+    with open(fileName, 'w', encoding='utf-8') as f:
+        __printHierachy(data, f, 0)

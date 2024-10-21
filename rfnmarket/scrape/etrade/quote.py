@@ -13,6 +13,9 @@ class Quote(Base):
         return [tableName]
 
     def update(self, keyValues, tables, forceUpdate):
+        # do all if forced update
+        if forceUpdate: return keyValues
+
         # check what symbols need to be updated
         now = int(datetime.now().timestamp())
         symbols = []
@@ -49,13 +52,13 @@ class Quote(Base):
             blockKeyValueIndices = keyValueIndices[x*blockSize:(x+1)*blockSize]
             symbolsList = [keyValues[x] for x in blockKeyValueIndices]
             allData = self.pushData(symbolsList, 'ALL', ['All', 'MutualFund'])
-            with open('etrade_ALL.txt', 'w', encoding='utf-8') as f:
-                pp(allData, f)
+            # with open('etrade_ALL.txt', 'w', encoding='utf-8') as f:
+            #     pp(allData, f)
             if 'MutualFund' in allData:
                 mfData = self.pushData(list(allData['MutualFund'].keys()), 'MF_DETAIL', ['MutualFund'])
                 allData['MutualFund'] = mfData['MutualFund']
-            with open('etrade_ALL.txt', 'w', encoding='utf-8') as f:
-                pp(allData, f)
+            # with open('etrade_ALL.txt', 'w', encoding='utf-8') as f:
+            #     pp(allData, f)
             if 'All' in allData:
                 self.db.tableWrite('equity', allData['All'], 'keySymbol', method='update')
             if 'MutualFund' in allData:

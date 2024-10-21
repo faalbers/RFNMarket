@@ -234,24 +234,6 @@ class Catalog():
                 },
             },
         },
-        'SP500sectors': {
-            'info': 'ticker traded in us markets',
-            'postProcs': [[__dropParent, {}]],
-            'sets': {
-                'SP500sectors': {
-                    'scrapes': {
-                        scrape.saved.Saved: {
-                            'SPDRS': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
-            },
-        },
         'quicken': {
             'info': 'quicken data',
             'postProcs': [[__dropParent, {}]],
@@ -274,9 +256,33 @@ class Catalog():
                 },
             },
         },
+        'ep': {
+            'info': 'ep',
+            'sets': {
+                'ep': {
+                    'postProcs': [[__mergeTables, {}]],
+                    'scrapes': {
+                        scrape.yahoo.QuoteSummary: {
+                            'defaultKeyStatistics': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['forwardPE', 'forwardPE', {}],
+                                ],
+                            },
+                            'summaryDetail': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['forwardPE', 'forwardPE2', {}],
+                                    ['trailingPE', 'trailingPE', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
         'profile': {
             'info': 'ticker company profile information',
-            'postProcs': [[__addExchangeData, {}]],
             'sets': {
                 'profile': {
                     'postProcs': [[__mergeTables, {}]],
@@ -293,6 +299,9 @@ class Catalog():
                                 'keyValues': True,
                                 'columnSettings': [
                                     ['currency', 'currency', {}],
+                                    ['marketCap', 'marketCap', {}],
+                                    ['city', 'dcity', {}],
+                                    ['state', 'dstate', {}],
                                 ],
                             },
                             'summaryProfile': {
@@ -304,7 +313,6 @@ class Catalog():
                             'assetProfile': {
                                 'keyValues': True,
                                 'columnSettings': [
-                                    ['sector', 'sector', {}],
                                     ['industry', 'industry', {}],
                                     ['country', 'country', {}],
                                     ['city', 'city', {}],
@@ -315,6 +323,8 @@ class Catalog():
                                 'keyValues': True,
                                 'columnSettings': [
                                     ['family', 'fundFamily', {}],
+                                    ['categoryName', 'categoryName', {}],
+                                    ['legalType', 'legalType', {}],
                                 ],
                             },
                         },
@@ -322,7 +332,7 @@ class Catalog():
                             'stocklist': {
                                 'keyValues': True,
                                 'columnSettings': [
-                                    ['exchangeShortName', 'exchange', {}],
+                                    ['exchangeShortName', 'acronym', {}],
                                     ['type', 'stockType', {}],
                                 ],
                                 'subTable': None,
@@ -342,7 +352,13 @@ class Catalog():
                             'SPDRS': {
                                 'keyValues': True,
                                 'columnSettings': [
-                                    ['SP500sector', 'SP500sector', {}],
+                                    ['SP500sector', 'sectorSP500', {}],
+                                ],
+                            },
+                            'NASDAQ': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['Industry', 'industryNASDAQ', {}],
                                 ],
                             },
                         },
@@ -402,12 +418,16 @@ class Catalog():
                                 'columnSettings': [
                                     ['trailingEps', 'trailingEps', {}],
                                     ['forwardEps', 'forwardEps', {}],
+                                    ['forwardPE', 'forwardPE_A', {}],
+                                    ['beta', 'beta', {}],
                                     ['pegRatio', 'pegRatio', {}],
+                                    ['yield', 'yield', {}],
                                 ],
                             },
                             'summaryDetail': {
                                 'keyValues': True,
                                 'columnSettings': [
+                                    ['forwardPE', 'forwardPE_B', {}],
                                     ['trailingPE', 'trailingPE', {}],
                                     ['trailingAnnualDividendRate', 'ttmDividendRate', {}],
                                 ],
@@ -418,6 +438,15 @@ class Catalog():
                                     ['earningsGrowth', 'earningsGrowth', {}],
                                     ['revenueGrowth', 'revenueGrowth', {}],
                                     ['revenuePerShare', 'revenuePerShare', {}],
+                                ],
+                            },
+                            'earningsHistory': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['epsActual', 'epsActual', {}],
+                                    ['epsEstimate', 'epsEstimate', {}],
+                                    ['epsDifference', 'epsDifference', {}],
+                                    ['quarter', 'quarter', {}],
                                 ],
                             },
                         },
@@ -489,18 +518,18 @@ class Catalog():
                         },
                     },
                 },
-                # 'etrade': {
-                #     'scrapes': {
-                #         scrape.etrade.Quote: {
-                #             'all': {
-                #                 'keyValues': True,
-                #                 'columnSettings': [
-                #                     ['all', '', {}],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
+                'etrade': {
+                    'scrapes': {
+                        scrape.etrade.Quote: {
+                            'all': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
                 'stocklist': {
                     'postProcs': [[__dropParent, {}]],
                     'scrapes': {
@@ -539,10 +568,111 @@ class Catalog():
                         },
                     },
                 },
-                # 'all_quarterly_financials': {
+                'all_quarterly_financials': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_quarterly_financials': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_annual_financials': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_annual_financials': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_trailing_financials': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_trailing_financials': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_quarterly_balanceSheet': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_quarterly_balanceSheet': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_annual_balanceSheet': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_annual_balanceSheet': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_quarterly_cashFlow': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_quarterly_cashFlow': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_annual_cashFlow': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_annual_cashFlow': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'all_trailing_cashFlow': {
+                    'scrapes': {
+                        scrape.yahoo.TimeSeries: {
+                            'all_trailing_cashFlow': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        'update': {
+            'info': 'all avalable database data',
+            'sets': {
+                # 'quotesummary': {
                 #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_quarterly_financials': {
+                #         scrape.yahoo.QuoteSummary: {
+                #             'all': {
                 #                 'keyValues': True,
                 #                 'columnSettings': [
                 #                     ['all', '', {}],
@@ -551,10 +681,11 @@ class Catalog():
                 #         },
                 #     },
                 # },
-                # 'all_annual_financials': {
+                # 'chart': {
+                #     'postProcs': [[__getTimeSeries, {'scrapeClass': scrape.yahoo.Chart}]],
                 #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_annual_financials': {
+                #         scrape.yahoo.Chart: {
+                #             'table_reference': {
                 #                 'keyValues': True,
                 #                 'columnSettings': [
                 #                     ['all', '', {}],
@@ -563,10 +694,23 @@ class Catalog():
                 #         },
                 #     },
                 # },
-                # 'all_trailing_financials': {
+                'etrade': {
+                    'scrapes': {
+                        scrape.etrade.Quote: {
+                            'all': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                # 'stocklist': {
+                #     'postProcs': [[__dropParent, {}]],
                 #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_trailing_financials': {
+                #         scrape.fmp.StockList: {
+                #             'all': {
                 #                 'keyValues': True,
                 #                 'columnSettings': [
                 #                     ['all', '', {}],
@@ -575,10 +719,11 @@ class Catalog():
                 #         },
                 #     },
                 # },
-                # 'all_quarterly_balanceSheet': {
+                # 'tickers': {
+                #     'postProcs': [[__dropParent, {}]],
                 #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_quarterly_balanceSheet': {
+                #         scrape.polygon.Tickers: {
+                #             'all': {
                 #                 'keyValues': True,
                 #                 'columnSettings': [
                 #                     ['all', '', {}],
@@ -587,47 +732,11 @@ class Catalog():
                 #         },
                 #     },
                 # },
-                # 'all_annual_balanceSheet': {
+                # 'saved': {
                 #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_annual_balanceSheet': {
-                #                 'keyValues': True,
-                #                 'columnSettings': [
-                #                     ['all', '', {}],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'all_quarterly_cashFlow': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_quarterly_cashFlow': {
-                #                 'keyValues': True,
-                #                 'columnSettings': [
-                #                     ['all', '', {}],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'all_annual_cashFlow': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_annual_cashFlow': {
-                #                 'keyValues': True,
-                #                 'columnSettings': [
-                #                     ['all', '', {}],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'all_trailing_cashFlow': {
-                #     'scrapes': {
-                #         scrape.yahoo.TimeSeries: {
-                #             'all_trailing_cashFlow': {
-                #                 'keyValues': True,
+                #         scrape.saved.Saved: {
+                #             'all': {
+                #                 'keyValues': False,
                 #                 'columnSettings': [
                 #                     ['all', '', {}],
                 #                 ],
