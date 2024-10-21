@@ -8,7 +8,7 @@ if __name__ == '__main__':
     data = tickers.getQuickenInvestments()
     symbols = list((data.keys()))
     symbols.sort()
-    data = tickers.getData(['price'], symbols, forceUpdate=True)
+    data = tickers.vdata.getData(['price'], symbols, forceUpdate=True)
     dftn = pd.DataFrame(data['price']).T['price'].dropna()
     dftn.to_csv('Z:\\Quicken\\QuickenImport.csv', header=False, sep=',', encoding='utf-8')
 
