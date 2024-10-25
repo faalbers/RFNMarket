@@ -111,9 +111,12 @@ class Chart(Base):
                             mergedQuote = {**indicators['quote'][0], **indicators['adjclose'][0]}
                             tsIndex = 0
                             for timestamp in timestamps:
-                                chartData[timestamp] = {}
+                                rowData = {}
                                 for param in mergedQuote.keys():
-                                    chartData[timestamp][param] = mergedQuote[param][tsIndex]
+                                    if mergedQuote[param][tsIndex] != None:
+                                        rowData[param] = mergedQuote[param][tsIndex]
+                                if len(rowData) > 0:
+                                    chartData[timestamp] = rowData
                                 tsIndex += 1
 
                     if 'events' in symbolData:
