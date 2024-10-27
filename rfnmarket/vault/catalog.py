@@ -227,6 +227,8 @@ class Catalog():
                                     ['symbol', 'symbol', {}],
                                     ['transaction', 'transaction', {}],
                                     ['shares', 'shares', {}],
+                                    ['price', 'price', {}],
+                                    ['costBasis', 'costBasis', {}],
                                 ],
                             },
                         },

@@ -16,14 +16,14 @@ class Report():
         leftPadding=72, 
         rightPadding=72,
         topPadding=10,
-        bottomPadding=18)
+        bottomPadding=10)
     
     __styles = getSampleStyleSheet()
     
     @staticmethod
     def __onPage(canvas, doc, pagesize=A4):
         pageNum = canvas.getPageNumber()
-        canvas.drawCentredString(pagesize[0]/2, 50, str(pageNum))
+        canvas.drawCentredString(pagesize[0]/2, 20, str(pageNum))
     
     @staticmethod
     def __onPageLandscape(canvas, doc):
@@ -82,174 +82,62 @@ class Report():
         ],
         hAlign = 'LEFT')
     
-    def __init__(self):
-        pass
-
-    def makeQuickenReport(self, quickenData, profileData, chartData):
-        # create doc pages
-        doc = BaseDocTemplate(
-            'reports/quickenReport.pdf',
+    def __init__(self, name):
+        self.doc = BaseDocTemplate(
+            'reports/%s.pdf' % name,
             pageTemplates=[
                 self.__portraitTemplate,
             ]
         )
-        closeType = 'adjclose'
-        story = []
-        for symbol, dfQuicken in quickenData.items():
-            if not symbol in profileData: continue
-            # if symbol != 'MMM': continue
+        self.story = []
+    
+    @property
+    def colors(self):
+        return colors
 
-            # profile data
-            name = profileData[symbol]['name']
-            columns = ['type', 'exchange', 'sector', 'fundFamily', 'industry', 'country', 'city', 'state']
-            row = {}
-            for info in columns:
-                if info in profileData[symbol]:
-                    row[info] = profileData[symbol][info]
-            profile = pd.DataFrame([row], columns=columns).dropna(axis=1)
+    def printStyles(self):
+        self.__styles.list()
 
-            # get total incoming transactions
-            sharesInRows = []
-            firstDate = datetime.now()
-            for transaction in ['ShrsIn', 'Buy', 'ReinvDiv', 'ReinvSh', 'ReinvLg', 'ReinvInt']:
-                transactions = dfQuicken[dfQuicken['transaction'] == transaction]
-                if len(transactions) == 0: continue
-                date = transactions.iloc[0]['date']
-                if date < firstDate: firstDate = date
-                shares = transactions['shares'].dropna().sum()
-                amount = transactions['costBasis'].dropna().sum()
-                price = amount / shares
-                sharesInRows.append({'transaction': transaction, 'shares': shares, 'amount': amount, 'average price': price})
-            sharesIn = pd.DataFrame(sharesInRows, columns=['transaction', 'shares', 'amount', 'average price'])
-            
-            # get total outgoing transactions
-            sharesInRows = []
-            for transaction in ['Sell', 'ShrsOut']:
-                transactions = dfQuicken[dfQuicken['transaction'] == transaction]
-                if len(transactions) == 0: continue
-                shares = -transactions['shares'].dropna().sum()
-                amount = transactions['costBasis'].dropna().sum()
-                price = amount / shares
-                sharesInRows.append({'transaction': transaction, 'shares': shares, 'amount': amount, 'average price': price})
-            sharesOut = pd.DataFrame(sharesInRows, columns=['transaction', 'shares', 'amount', 'average price'])
+    def getStyle(self, name):
+        return copy.deepcopy(self.__styles[name])
 
-            # portfolio data
-            sharesLeft = float(sharesIn['shares'].sum() - sharesOut['shares'].sum())
-            chart = pd.DataFrame(chartData[symbol]).T.iloc[-1]
-            date = str(datetime.fromtimestamp(int(chart.name)))
-            price = float(chart[closeType])
-            worth = sharesLeft * price
-            columns = ['last close date', 'shares', 'price', 'worth']
-            row = {'last close date': date, 'shares': sharesLeft, 'price': price, 'worth': worth}
-            portfolio = pd.DataFrame([row], columns=['last close date', 'shares', 'price', 'worth'])
+    def addParagraph(self, text, style=__styles['Normal']):
+        self.story.append(Paragraph(text, style))
 
-            # start chart from first investment
-            fromTS = int(firstDate.timestamp())
-            chartAll = pd.DataFrame(chartData[symbol]).T
-            chartFirst = chartAll.loc[fromTS:]
+    def addTable(self, df):
+        self.story.append( self.__df2table(df) )
 
-            # get price chart and normalize
-            dfPrice = chartFirst[[closeType]].copy()
-            dfPrice[closeType] = dfPrice[closeType].div(dfPrice.iloc[0][closeType])
-            dfPrice.index = pd.to_datetime(dfPrice.index, unit='s').date
-            dfPrice.index = dfPrice.index.astype(str) # need to do this for plotting to work correctly
+    def addSpace(self, inches):
+        self.story.append( Spacer(1,inches * inch) )
+    
+    def plotLineDF(self, dataFrame, ylabel=None, yline=None, grid=True):
+        chartFig, ax = plt.subplots(dpi=300, figsize=(8, 4))
+        # for some reason it needs the y seting for things to work properly
+        dataFrame.plot(y=dataFrame.columns[0], ax=ax, kind='line', color='blue', linewidth=1, label='_hidden')
+        if ylabel != None:
+            ax.set_ylabel(ylabel)
+        if yline != None:
+            ax.axhline(y=yline, color='green', linestyle='--')
+        # plt.xticks(rotation=45, fontsize=6)
+        plt.xticks(fontsize=6)
+        plt.grid(grid)
+        self.story.append( self.__fig2image(chartFig) )
+        plt.close(chartFig)
 
-            # get dividends
-            divRows = []
-            dfTransactions = dfQuicken.sort_values(by=['date'])
-            if 'dividend' in chartFirst.columns:
-                dfDividends = chartFirst.dropna(subset = ['dividend'])
-                if len(dfDividends) > 0:
-                    for index , values in dfDividends.iterrows():
-                        date = datetime.fromtimestamp(index)
-                        qTrDate = dfTransactions[dfTransactions['date'] <= date]
-                        if len(qTrDate) == 0: continue
-                        sharesAtTime = qTrDate['shares'].sum()
-                        divValue = sharesAtTime * values['dividend']
-                        divShares = divValue / values[closeType]
-                        row = {'date': date, 'div / share': values['dividend'], 'shares': sharesAtTime,
-                            'div shares': divShares, 'price': values[closeType], 'div value': divValue}
-                        divRows.append(row)
-            dfDivQuicken = dfTransactions[dfTransactions['transaction'].isin(['ReinvDiv'])]
-            dfDivPortfolio = pd.DataFrame(divRows)
+    def plotBarDF(self, dataFrame, ylabel=None, colors=[], grid=True):
+        divFig, ax = plt.subplots(dpi=300, figsize=(8, 2))
+        # for some reason it needs the y seting for things to work properly
+        dataFrame.plot(y=dataFrame.columns[0], kind='bar', ax=ax, color=colors, label='_hidden', grid=grid)
+        if ylabel != None:
+            ax.set_ylabel(ylabel)
+        ax.set_axisbelow(True)
+        plt.xticks(rotation=20, fontsize=6)
+        self.story.append( self.__fig2image(divFig) )
+        plt.close(divFig)
 
-            # get dividends history for 5 years
-            dfDiviAll = pd.DataFrame()
-            if 'dividend' in chartAll.columns:
-                fromTS = datetime.now().timestamp() - (60*60*24*356*5)
-                dfDiviAll = chartAll.loc[fromTS:].dropna(subset = ['dividend'])
-                fromTS = int(firstDate.timestamp())
-                dfDiviAll['owned'] = dfDiviAll.index >= fromTS
-                dfDiviAll['divpercent'] = (dfDiviAll['dividend'] / dfDiviAll[closeType]) * 100.0
-                dfDiviAll.index = pd.to_datetime(dfDiviAll.index, unit='s').date
-                dfDiviAll.index = dfDiviAll.index.astype(str)
+    def addPageBreak(self):
+        self.story.append(PageBreak())
+    
+    def buildDoc(self):
+        self.doc.build(self.story)
 
-            # create pages 
-            # profile
-            symbolLine = '%s: %s' % (symbol, name)
-            story.append( Paragraph(symbolLine, self.__styles['Heading1'], ) )
-            story.append( self.__df2table(profile) )
-            if 'info' in profileData[symbol]:
-                story.append( Spacer(1,10) )
-                story.append( Paragraph(profileData[symbol]['info']) )
-
-            # shares
-            if len(sharesIn) > 0:
-                story.append( Paragraph('Incoming Shares: start date: %s' % firstDate.strftime('%Y-%m-%d'), self.__styles['Heading2'] ) )
-                story.append( self.__df2table(sharesIn.round(4)) )
-            if len(sharesOut) > 0:
-                story.append( Paragraph('Outgoing Shares:', self.__styles['Heading2'] ) )
-                story.append( self.__df2table(sharesOut.round(4)) )
-            story.append( Paragraph('Shares in Portfolio:', self.__styles['Heading2'], ) )
-            story.append( self.__df2table(portfolio.round(4)) )
-
-            # plot price
-            chartFig, ax = plt.subplots(dpi=300, figsize=(8, 4))
-            dfPrice.plot(y=closeType, kind='line', ax=ax, color='blue', linewidth=1, label='_hidden')
-            ax.set_ylabel('price')
-            ax.axhline(y=1.0, color='green', linestyle='--')
-            # plt.xticks(rotation=45, fontsize=6)
-            plt.xticks(fontsize=6)
-            plt.grid(True)
-
-            story.append( self.__fig2image(chartFig) )
-            plt.close(chartFig)
-            story.append( PageBreak() )
-
-            if len(dfDivPortfolio) > 0:
-                story.append( Paragraph('Dividends per data:', self.__styles['Heading2'] ) )
-                story.append( self.__df2table(dfDivPortfolio.round(4)) )
-            
-            if len(dfDivQuicken) > 0:
-                story.append( Paragraph('Dividends reinvest:', self.__styles['Heading2'] ) )
-                story.append( self.__df2table(dfDivQuicken.round(4)) )
-            elif len(dfDivPortfolio) > 0:
-                style = copy.deepcopy(self.__styles['Heading2'])
-                style.textColor = colors.red
-                story.append( Paragraph('No Dividends reinvested', style ) )
-            
-            if len(dfDiviAll) > 0:
-                divColors = [("red" if x else "blue") for x in dfDiviAll['owned']]
-                divFig, ax = plt.subplots(dpi=300, figsize=(8, 2))
-                dfDiviAll.plot(y='dividend', kind='bar', ax=ax, color=divColors, label='_hidden', grid=True)
-                ax.set_ylabel('$ / share')
-                ax.set_axisbelow(True)
-                plt.xticks(rotation=20, fontsize=6)
-                story.append( Paragraph('Dividend ($) per share', self.__styles['Heading2'] ) )
-                story.append( self.__fig2image(divFig) )
-                plt.close(divFig)
-
-                # dividends percent
-                divFig, ax = plt.subplots(dpi=300, figsize=(8, 2))
-                dfDiviAll.plot(y='divpercent', kind='bar', ax=ax, color=divColors, label='_hidden', grid=True)
-                ax.set_ylabel('% / share')
-                ax.set_axisbelow(True)
-                plt.xticks(rotation=20, fontsize=6)
-                story.append( Paragraph('Dividend percent per share', self.__styles['Heading2'] ) )
-                story.append( self.__fig2image(divFig) )
-                plt.close(divFig)
-
-            
-            story.append( PageBreak() )
-
-        doc.build(story)

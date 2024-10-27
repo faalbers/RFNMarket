@@ -23,10 +23,12 @@ class Saved():
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         self.db = database.Database(self.dbName)
         self.dataPath = 'database/'
-        self.readCSV()
-        self.readSPDRS()
-        self.readNASDAQ()
-        self.readQuicken()
+        # self.readCSV()
+        # self.readSPDRS()
+        # self.readNASDAQ()
+        # self.readQuicken()
+        self.readQuickenTest()
+        
 
     def readNASDAQ(self):
         dfSS = pd.DataFrame(self.db.tableRead('NASDAQ_STOCK_SCREENER', handleKeyValues=False))
