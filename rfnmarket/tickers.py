@@ -122,9 +122,6 @@ class Tickers():
         
         return investments
     
-    def getPortfolio(self):
-        pass
-
     def makePortfolioReport(self):
         # Set display options to show all columns and rows
         pd.set_option('display.max_columns', None)
@@ -173,7 +170,21 @@ class Tickers():
         
         return symbolDfs
     
+    def getTimeSeries(self, symbols, update=False):
+        timeSeriesData = self.vdata.getData(['timeSeries'], keyValues=symbols, update=update)['timeSeries']
+        if not 'chart' in timeSeriesData: return {}
+        timeSeriesData = timeSeriesData['chart']
+
+        timeseries = {}
+        for symbol, tsData in timeSeriesData.items():
+            df = pd.DataFrame(tsData).T
+            df.sort_index(inplace=True)
+            df.index = pd.to_datetime(df.index, unit='s').date
+            timeseries[symbol] = df
+        return timeseries
+
     def getClose(self, symbols, startDate, endDate, update=False):
+        # keep for now because it has reusable date functionality to be implemented later in getTimeSeries
         startTS = int(datetime.combine(startDate, time()).timestamp())
         endTS = int((datetime.combine(endDate, time())+timedelta(days=1)).timestamp())
         data = self.vdata.getData(['timeSeries'], keyValues=symbols, update=update)['timeSeries']['chart']

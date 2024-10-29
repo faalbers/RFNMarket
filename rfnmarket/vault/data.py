@@ -44,6 +44,9 @@ class Data():
             scraperClass(keyValues, tables=tableNames, forceUpdate=forceUpdate)
     
     def getData(self, catalogs=[], keyValues=[], update=False, forceUpdate=False, catalogDB=None):
+        # make sure all keyValues are capitalized
+        keyValues = [x.upper() for x in keyValues]
+        
         if update or forceUpdate: self.update(catalogs, keyValues, forceUpdate=forceUpdate)
         mainData = {}
         for catalog in catalogs:
