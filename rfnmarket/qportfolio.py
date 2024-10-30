@@ -69,6 +69,15 @@ class QPortfolio():
                 secShares[symbol] = shLeft
         return secShares
     
+    def getSecurityShares(self):
+        symbols = set()
+        for account in self.getAccountNames():
+            sShares = self.getAccountSecurityShares(account)
+            symbols = symbols.union(sShares.keys())
+        symbols = list(symbols)
+        symbols.sort()
+        return symbols
+    
     def getInvestmentHistory(self, account):
         nowDate = datetime.now().date()
         # gather actions and make share out actions negative
@@ -85,7 +94,7 @@ class QPortfolio():
         symbols = set(shares['secSymbol'].to_list())
 
         # get timeseries for symbols
-        timeSeries = self.__tickers.getTimeSeries(symbols)
+        timeSeries = self.__tickers.getTimeSeries(symbols, update=True)
 
         # gather data per symbol we have timeseries for
         investmentHistory = {'symbols': {}}
