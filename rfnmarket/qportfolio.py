@@ -198,7 +198,6 @@ class QPortfolio():
             accountNames = set(accountNames).intersection((self.getAccountNames()))
 
         for accountName in accountNames:
-            # if accountName != 'ETRADE_Trust': continue
             ihData = self.getInvestmentHistory(accountName, update=update)
             if len(ihData) == 0: continue
 
@@ -248,7 +247,7 @@ class QPortfolio():
             profileData = self.__tickers.getProfile(ihData['symbols'].keys(), update=update)
             for symbol, sData in ihData['symbols'].items():
                 name = profileData[symbol]['name']
-                columns = ['type', 'fundFamily', 'exchange', 'sector', 'industry', 'country', 'city', 'state']
+                columns = ['type', 'acronym', 'sector', 'industry', 'country', 'city', 'state', 'fundFamily', 'categoryName']
                 row = {}
                 for info in columns:
                     if info in profileData[symbol]:
@@ -264,6 +263,7 @@ class QPortfolio():
                 qReport.plotLineDF(sData, y = ['amount', 'value'], labels= ['payed', 'value'], colors=['green', 'blue'], height=5)
 
                 qReport.addPageBreak()
+                qReport.addParagraph(symbolLine, qReport.getStyle('Heading1'))
 
                 qReport.addParagraph('Gain and Price:', qReport.getStyle('Heading2'))
 
