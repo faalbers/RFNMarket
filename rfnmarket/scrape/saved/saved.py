@@ -23,11 +23,10 @@ class Saved():
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         self.db = database.Database(self.dbName)
         self.dataPath = 'database/'
-        # self.readCSV()
-        # self.readSPDRS()
-        # self.readNASDAQ()
+        self.readCSV()
+        self.readSPDRS()
+        self.readNASDAQ()
         # self.readQuicken()
-        self.readQuickenTest()
         
 
     def readNASDAQ(self):

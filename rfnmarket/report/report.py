@@ -1,5 +1,6 @@
 from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Table, Paragraph, PageBreak, Image, Spacer
 from reportlab.lib import colors
+import matplotlib.colors as mcolors
 from reportlab.lib.units import inch
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
@@ -97,6 +98,11 @@ class Report():
 
     def printStyles(self):
         self.__styles.list()
+    
+    def printColors(self):
+        colors = list(mcolors.CSS4_COLORS.keys())
+        colors.sort()
+        pp(colors)
 
     def getStyle(self, name):
         return copy.deepcopy(self.__styles[name])
@@ -110,10 +116,12 @@ class Report():
     def addSpace(self, inches):
         self.story.append( Spacer(1,inches * inch) )
     
-    def plotLineDF(self, dataFrame, ylabel=None, yline=None, grid=True):
-        chartFig, ax = plt.subplots(dpi=300, figsize=(8, 4))
+    def plotLineDF(self, dataFrame, y=[], labels=None, ylabel=None, yline=None, colors=None, grid=True, height=3):
+        chartFig, ax = plt.subplots(dpi=300, figsize=(7, height))
         # for some reason it needs the y seting for things to work properly
-        dataFrame.plot(y=dataFrame.columns[0], ax=ax, kind='line', color='blue', linewidth=1, label='_hidden')
+        if len(y) == 0:
+            y = dataFrame.columns.as_list()
+        dataFrame.plot(y=y, ax=ax, kind='line', linewidth=1, label=labels, color=colors)
         if ylabel != None:
             ax.set_ylabel(ylabel)
         if yline != None:

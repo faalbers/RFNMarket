@@ -11,8 +11,8 @@ class Tickers():
         log.initLogger(logLevel=logLevel)
         self.vdata = vault.Data()
 
-    def getProfile(self, symbols=[]):
-        data = self.vdata.getData(['profile'], symbols)['profile']
+    def getProfile(self, symbols=[], update = False):
+        data = self.vdata.getData(['profile'], symbols, update=update)['profile']
 
         # get all mics and acronyms that have US country code and update profile
         mics = data['mic']['ISO10383_MIC']
@@ -377,82 +377,6 @@ class Tickers():
 
         qReport.buildDoc()
     
-    def makeInvestmentReport(self):
-        pass
-
-    def makeQuickenDailyPortfolio(self):
-        quickenData = self.getQuickenStockTransactions(update=True)
-        symbols = list(quickenData.keys())
-        symbols.sort()
-
-        # find start date of first investment
-        startDate = pd.Timestamp(datetime.now()).date()
-        endDate = pd.Timestamp(datetime.now()).date()
-        for symbol, qData in quickenData.items():
-            qStartDate = qData.iloc[0]['date']
-            if qStartDate < startDate:
-                startDate = qStartDate
-        
-        # get close prices for all symbols
-        prices = self.getClose(symbols, startDate, endDate)
-        symbolAll = pd.DataFrame(index=prices.index)
-        capitalAll = pd.DataFrame(index=prices.index)
-
-        symbolInvestments = {}
-        # greate investment histories per symbol
-        for symbol, qData in quickenData.items():
-            if not symbol in prices.columns: continue
-            # if symbol != 'VITAX': continue
-            symbolIn = pd.DataFrame(index=prices.index)
-            capitalIn = pd.DataFrame(index=prices.index)
-            invCount = 0
-            lastDate = None
-            for date, dData in qData.iterrows():
-                if dData['transaction'] in ['Buy', 'ReinvDiv']:
-                    invName = 'INV%04d' % invCount
-                    # capDate = capitalIn[dData['date']:].index[0]
-                    # capitalIn.at[capDate, 'capital'] = dData['costBasis']
-                    # lastDate = capDate
-                    
-                    sPrices = prices[dData['date']:][[symbol]]
-                    sPrices = sPrices / dData['price']
-                    sPrices = sPrices * dData['costBasis']
-                    sPrices.rename(columns={symbol: invName}, inplace=True)
-                    symbolIn = symbolIn.join(sPrices)
-
-                    sCapital = pd.DataFrame([{invName: dData['costBasis']}]*len(sPrices.index), index=sPrices.index)
-                    capitalIn = capitalIn.join(sCapital)
-
-                    invCount += 1
-            
-            symbolInv = pd.DataFrame(index=prices.index)
-            symbolInv['capital'] = capitalIn.sum(axis=1)
-            symbolInv['value'] = symbolIn.sum(axis=1)
-            symbolInvestments[symbol] = symbolInv
-
-            symbolAll = symbolAll.join(symbolInv[['value']])
-            symbolAll.rename(columns={'value': symbol}, inplace=True)
-            capitalAll = capitalAll.join(symbolInv[['capital']])
-            capitalAll.rename(columns={'capital': symbol}, inplace=True)
-
-            # symbolInv[(symbolInv >= 1.0).any(axis=1)].plot(title=symbol)
-
-        investments = {'symbols': symbolInvestments}
-
-        inv = pd.DataFrame(index=prices.index)
-        inv['capital'] = capitalAll.sum(axis=1)
-        inv['value'] = symbolAll.sum(axis=1)
-
-        investments['all'] = inv
-        
-        profit = pd.DataFrame(index=prices.index)
-        profit['profit'] = inv['value'] - inv['capital']
-
-        # inv[(inv >= 1.0).any(axis=1)].plot(title='ALL', grid=True)
-        # profit.plot(title='PROFIT', grid=True)
-
-        plt.show()
-
     def createDataOverview(self, fileName):
         symbols = self.getData(['ussymbols'])['ussymbols']
         data = self.getData(['all'], symbols[:1000])
