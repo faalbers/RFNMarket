@@ -1,6 +1,6 @@
 from ...utils import log, database
 from .base import Base
-from datetime import datetime
+from datetime import datetime, time
 from pprint import pp 
 import pandas as pd
 import numpy as np
@@ -23,7 +23,6 @@ class Chart(Base):
         return tsTypeUpdatePeriods
     
     def update(self, symbols, forceUpdate=False):
-        
         dataStatus = self.db.tableRead('status_db', keyValues=symbols, columns=['chart'])
         dataLastEntry = self.db.tableRead('lastentry_db', keyValues=symbols, columns=['chart'])
         
@@ -111,6 +110,8 @@ class Chart(Base):
                             mergedQuote = {**indicators['quote'][0], **indicators['adjclose'][0]}
                             tsIndex = 0
                             for timestamp in timestamps:
+                                timestamp = datetime.fromtimestamp(timestamp).date()
+                                timestamp = int(datetime.combine(timestamp, time()).timestamp())
                                 rowData = {}
                                 for param in mergedQuote.keys():
                                     if mergedQuote[param][tsIndex] != None:
@@ -124,9 +125,11 @@ class Chart(Base):
                         events = symbolData['events']
                         for event, eventData in events.items():
                             for date, dateData in eventData.items():
-                                if not dateData['date'] in chartData:
-                                    chartData[dateData['date']] = {}
-                                chartRow = chartData[dateData['date']]
+                                timestamp = datetime.fromtimestamp(dateData['date']).date()
+                                timestamp = int(datetime.combine(timestamp, time()).timestamp())
+                                if not timestamp in chartData:
+                                    chartData[timestamp] = {}
+                                chartRow = chartData[timestamp]
                                 if event == 'dividends':
                                     chartRow['dividend'] = dateData['amount']
                                 elif event == 'capitalGains':
@@ -146,7 +149,7 @@ class Chart(Base):
 
                     # write data 
                     if len(chartData) > 0:
-                        self.db.tableWrite(tableName, chartData, 'timestamp', method='append')
+                        self.db.tableWrite(tableName, chartData, 'timestamp', method='update')
 
                         # write table reference
                         self.db.tableWrite('table_reference', {symbol: {'chart': tableName}}, 'keySymbol', method='append')
