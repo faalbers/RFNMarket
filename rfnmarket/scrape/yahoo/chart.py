@@ -1,6 +1,6 @@
 from ...utils import log, database
 from .base import Base
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from pprint import pp 
 import pandas as pd
 import numpy as np
@@ -14,38 +14,30 @@ class Chart(Base):
             return ['chart']
         return [tableName]
 
-    @staticmethod
-    def getTsTypeUpdatePeriods():
-        tsTypeUpdatePeriods = {
-            'default': 60*60*24,
-            'chart': 60*60*24,
-        }
-        return tsTypeUpdatePeriods
-    
     def update(self, symbols, forceUpdate=False):
         dataStatus = self.db.tableRead('status_db', keyValues=symbols, columns=['chart'])
         dataLastEntry = self.db.tableRead('lastentry_db', keyValues=symbols, columns=['chart'])
-        
-        now = int(datetime.now().timestamp())
-        tenYears = int(now - (60*60*24*365.2422*10))
-        oneDay = int(now - (60*60*24))
-        weekRange = 60*60*24*7
 
+        today = datetime.now().date()
+        tenYears = datetime(year=today.year-10, month=today.month, day=today.day).date()
+        oneWeek = today - timedelta(days=7)
+        today = int(datetime.combine(today, time()).timestamp())
+        tenYears = int(datetime.combine(tenYears, time()).timestamp())
+        oneWeek = int(datetime.combine(oneWeek, time()).timestamp())
+        
         symbolPeriods = {}
         for symbol in symbols:
             if not symbol in dataStatus:
-                # get last 10 years
                 symbolPeriods[symbol] = tenYears
             elif symbol in dataLastEntry:
                 lastEntry = dataLastEntry[symbol]['chart']
-                if lastEntry < oneDay:
-                    if (dataStatus[symbol]['chart'] - lastEntry) < weekRange:
-                        # update if we found additional data in last week
-                        # else it will never be updated again
-                        symbolPeriods[symbol] = lastEntry
+                # not sure about this one week thing yet
+                # if lastEntry >= oneWeek:
+                #     symbolPeriods[symbol] = lastEntry
+                symbolPeriods[symbol] = lastEntry
         
         return symbolPeriods
-
+    
     def __init__(self, symbols=[], tables=[], forceUpdate=False):
         super().__init__()
 

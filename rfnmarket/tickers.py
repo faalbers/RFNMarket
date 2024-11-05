@@ -122,54 +122,6 @@ class Tickers():
         
         return investments
     
-    def makePortfolioReport(self):
-        # Set display options to show all columns and rows
-        pd.set_option('display.max_columns', None)
-        pd.set_option('display.max_rows', None)
-        pd.set_option('display.width', None)
-        
-        portfolioData = self.getQuickenInvestments()
-
-        for accountName , qTrs in portfolioData.items():
-            if accountName != 'FIDELITY_ Frank Roth': continue
-            print(accountName)
-            # ['date', 'amount', 'action', 'transferAccount', 'security', 'price', 'shares', 'commission', 'description', 'memo', 'secSymbol', 'secType']
-            trs = qTrs[['date', 'action', 'secSymbol', 'shares', 'price', 'amount']]
-            print(trs)
-            # break
-
-    def getQuickenStockTransactions(self, update=False):
-        quickenData = self.vdata.getData(['quicken'], update=update)['quicken']
-
-        # set in and out transaction
-        symbolTransactions = {}
-        for entry in quickenData:
-            rowData = {}
-            if not 'shares' in entry: continue
-            symbol = entry.pop('symbol')
-            rowData['date'] = pd.Timestamp(datetime.fromtimestamp(entry.pop('timestamp'))).date()
-            rowData['shares'] = entry['shares']
-            rowData['transaction'] = entry['transaction']
-            if 'price' in entry: rowData['price'] = entry['price']
-            if 'costBasis' in entry: rowData['costBasis'] = entry['costBasis']
-            if not symbol in symbolTransactions:
-                symbolTransactions[symbol] = []
-            symbolTransactions[symbol].append(rowData)
-
-        # get symbol DataFrames that still have shares
-        symbolDfs = {}
-        columns = ['date', 'transaction', 'shares', 'price', 'costBasis']
-        for symbol, trs in symbolTransactions.items():
-            df = pd.DataFrame(trs, columns=columns)
-            dfIn = df[df['transaction'].isin(['Buy', 'ShrsIn', 'ReinvLg', 'ReinvSh', 'ReinvDiv', 'ReinvInt'])]
-            dfOut = df[~df['transaction'].isin(['Buy', 'ShrsIn', 'ReinvLg', 'ReinvSh', 'ReinvDiv', 'ReinvInt'])]
-            sharesOwned = dfIn['shares'].sum() - dfOut['shares'].sum()
-            if sharesOwned < 0.001: continue
-            df.sort_values(by='date', inplace=True)
-            symbolDfs[symbol] = df
-        
-        return symbolDfs
-    
     def getTimeSeries(self, symbols, update=False):
         timeSeriesData = self.vdata.getData(['timeSeries'], keyValues=symbols, update=update)['timeSeries']
         if not 'chart' in timeSeriesData: return {}
@@ -181,6 +133,7 @@ class Tickers():
             df.sort_index(inplace=True)
             df.index = pd.to_datetime(df.index, unit='s').date
             timeseries[symbol] = df
+        
         return timeseries
 
     def getClose(self, symbols, startDate, endDate, update=False):

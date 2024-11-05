@@ -116,33 +116,63 @@ class Report():
     def addSpace(self, inches):
         self.story.append( Spacer(1,inches * inch) )
     
-    def plotLineDF(self, dataFrame, y=[], labels=None, ylabel=None, yline=None, colors=None, grid=True, height=3):
+    def plotLineDF(self, dataFrame, y=[], labels=None, ylabel=None, divLine=None, colors=None, grid=True, height=3):
+        dataFrame = dataFrame.copy()
+        if isinstance(dataFrame.index[0],type(datetime.now().date())):
+            dataFrame.index = pd.to_datetime(dataFrame.index)
         chartFig, ax = plt.subplots(dpi=300, figsize=(7, height))
-        # for some reason it needs the y seting for things to work properly
         if len(y) == 0:
-            y = dataFrame.columns.as_list()
+            y = dataFrame.columns.to_list()
         dataFrame.plot(y=y, ax=ax, kind='line', linewidth=1, label=labels, color=colors)
         if ylabel != None:
             ax.set_ylabel(ylabel)
-        if yline != None:
-            ax.axhline(y=yline, color='green', linestyle='--')
+        if divLine != None:
+            ax.axhline(y=divLine, color='green', linestyle='--')
         # plt.xticks(rotation=45, fontsize=6)
         plt.xticks(fontsize=6)
+        plt.yticks(fontsize=6)
         plt.grid(grid)
+        # plt.tight_layout()
         self.story.append( self.__fig2image(chartFig) )
         plt.close(chartFig)
 
-    def plotBarDF(self, dataFrame, ylabel=None, colors=[], grid=True):
-        divFig, ax = plt.subplots(dpi=300, figsize=(8, 2))
-        # for some reason it needs the y seting for things to work properly
-        dataFrame.plot(y=dataFrame.columns[0], kind='bar', ax=ax, color=colors, label='_hidden', grid=grid)
-        if ylabel != None:
-            ax.set_ylabel(ylabel)
+    def plotBarsLineDF(self, dataFrame, ybars, yline,
+            barLabels=None, yBarsLabel=None, barsWidth=0.5, barColors=None,
+            yLineLabel=None, lineColor=None,
+            divLine=None, grid=True, plotHeight=3.0):
+        dataFrame = dataFrame.copy()
+        if isinstance(dataFrame.index[0],type(datetime.now().date())):
+            dataFrame.index = pd.to_datetime(dataFrame.index)
+            dataFrame.index = dataFrame.index.strftime('%m-%d-%y')
+        # create plot figure
+        chartFig, ax = plt.subplots(dpi=300, figsize=(7, plotHeight))
+        
+        # plot bar data
+        dataFrame.plot(y=ybars, ax=ax, kind='bar', label=barLabels, color=barColors, width=barsWidth)
+        if yBarsLabel != None:
+            ax.set_ylabel(yBarsLabel)
+        if divLine != None:
+            ax.axhline(y=divLine, color='green', linestyle='--')
         ax.set_axisbelow(True)
-        plt.xticks(rotation=20, fontsize=6)
-        self.story.append( self.__fig2image(divFig) )
-        plt.close(divFig)
+        plt.xticks(rotation=45, fontsize=6)
+        plt.yticks(fontsize=6)
+        plt.grid(grid)
 
+        # plot line data
+        axl = plt.twinx(ax)
+        dataFrame.plot(y=yline, ax=axl, kind='line', linewidth=1, color=lineColor)
+        axl.legend()
+        axl.get_legend().remove()
+        if yLineLabel != None:
+            axl.set_ylabel(yLineLabel, color=lineColor)
+        plt.yticks(fontsize=6)
+        plt.grid(grid)
+        plt.tight_layout()
+        
+        # add figure to story
+        self.story.append( self.__fig2image(chartFig) )
+        plt.close(chartFig)
+    
     def addPageBreak(self):
         self.story.append(PageBreak())
     

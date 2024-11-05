@@ -498,18 +498,18 @@ class Catalog():
                         },
                     },
                 },
-                'etrade': {
-                    'scrapes': {
-                        scrape.etrade.Quote: {
-                            'all': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
+                # 'etrade': {
+                #     'scrapes': {
+                #         scrape.etrade.Quote: {
+                #             'all': {
+                #                 'keyValues': True,
+                #                 'columnSettings': [
+                #                     ['all', '', {}],
+                #                 ],
+                #             },
+                #         },
+                #     },
+                # },
                 'stocklist': {
                     'postProcs': [[__dropParent, {}]],
                     'scrapes': {
@@ -649,34 +649,9 @@ class Catalog():
         'update': {
             'info': 'all avalable database data',
             'sets': {
-                # 'quotesummary': {
-                #     'scrapes': {
-                #         scrape.yahoo.QuoteSummary: {
-                #             'all': {
-                #                 'keyValues': True,
-                #                 'columnSettings': [
-                #                     ['all', '', {}],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'chart': {
-                #     'postProcs': [[__getTimeSeries, {'scrapeClass': scrape.yahoo.Chart}]],
-                #     'scrapes': {
-                #         scrape.yahoo.Chart: {
-                #             'table_reference': {
-                #                 'keyValues': True,
-                #                 'columnSettings': [
-                #                     ['all', '', {}],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                'etrade': {
+                'quotesummary': {
                     'scrapes': {
-                        scrape.etrade.Quote: {
+                        scrape.yahoo.QuoteSummary: {
                             'all': {
                                 'keyValues': True,
                                 'columnSettings': [
@@ -686,10 +661,22 @@ class Catalog():
                         },
                     },
                 },
-                # 'stocklist': {
-                #     'postProcs': [[__dropParent, {}]],
+                'chart': {
+                    'postProcs': [[__getTimeSeries, {'scrapeClass': scrape.yahoo.Chart}]],
+                    'scrapes': {
+                        scrape.yahoo.Chart: {
+                            'table_reference': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                # 'etrade': {
                 #     'scrapes': {
-                #         scrape.fmp.StockList: {
+                #         scrape.etrade.Quote: {
                 #             'all': {
                 #                 'keyValues': True,
                 #                 'columnSettings': [
@@ -699,31 +686,44 @@ class Catalog():
                 #         },
                 #     },
                 # },
-                # 'tickers': {
-                #     'postProcs': [[__dropParent, {}]],
-                #     'scrapes': {
-                #         scrape.polygon.Tickers: {
-                #             'all': {
-                #                 'keyValues': True,
-                #                 'columnSettings': [
-                #                     ['all', '', {}],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
-                # 'saved': {
-                #     'scrapes': {
-                #         scrape.saved.Saved: {
-                #             'all': {
-                #                 'keyValues': False,
-                #                 'columnSettings': [
-                #                     ['all', '', {}],
-                #                 ],
-                #             },
-                #         },
-                #     },
-                # },
+                'stocklist': {
+                    'postProcs': [[__dropParent, {}]],
+                    'scrapes': {
+                        scrape.fmp.StockList: {
+                            'all': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'tickers': {
+                    'postProcs': [[__dropParent, {}]],
+                    'scrapes': {
+                        scrape.polygon.Tickers: {
+                            'all': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+                'saved': {
+                    'scrapes': {
+                        scrape.saved.Saved: {
+                            'all': {
+                                'keyValues': False,
+                                'columnSettings': [
+                                    ['all', '', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
             },
         },
     }
