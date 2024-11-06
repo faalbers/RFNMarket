@@ -177,23 +177,6 @@ class QPortfolio():
         
         return investmentHistory
 
-    def test(self, accountNames=[], update=False):
-        if False:
-            # just temporary for testing
-            pd.set_option('display.max_columns', None)
-            pd.set_option('display.max_rows', None)
-            pd.set_option('display.width', None)
-
-        if len(accountNames) == 0:
-            accountNames = self.getAccountNames()
-        else:
-            accountNames = set(accountNames).intersection((self.getAccountNames()))
-
-        for accountName in accountNames:
-            # ehData = self.getEventReinvestHistory(accountName, update=update)
-            result = self.getInvestmentHistory(accountName, update=update)
-            # pp(result)
-    
     def makeReports(self, accountNames=[], update=False):
         if len(accountNames) == 0:
             accountNames = self.getAccountNames()
@@ -386,7 +369,6 @@ class QPortfolio():
                 sDivData = pd.DataFrame(index=divDateRange)
                 if symbol in timeSeries and 'dividend' in timeSeries[symbol]:
                     sDivData = sDivData.join(timeSeries[symbol]['dividend'])
-                # divColumns = ['divReinvShares', 'divReinvAmount', 'divAmount']
                 divColumns = ['divReinvAmount', 'divAmount']
                 divColumns = list(set(divColumns).intersection(set(ihData[symbol].columns)))
                 divColumns.sort()
@@ -394,15 +376,10 @@ class QPortfolio():
                     sDivData = sDivData.join(ihData[symbol][divColumns])
                 sDivData.dropna(how='all', inplace=True)
                 sDivData = sDivData.join(sData['shares'])
-                # utils.printDataFrame(sDivData, 'dataframediv.txt', title='%s: %s' % (accountName,symbol), append=True)
                 if sDivData.shape[0] > 0:
-                    # utils.printDataFrame(sDivData, 'dataframediv.txt', title='%s: %s' % (accountName,symbol), append=True)
-                    # print()
-                    # print(sDivData.columns)
                     sDivData.rename(columns={'divAmount': 'divCashed', 'divReinvAmount': 'divReinv'}, inplace=True)
                     if 'dividend' in sDivData:
                         sDivData['divPosted'] = sDivData['dividend'] * sDivData['shares']
-                    # utils.printDataFrame(sDivData, 'dataframediv.txt', title='%s: %s' % (accountName,symbol), append=True)
                     values = ['divPosted', 'divCashed','divReinv']
                     availValues = []
                     for value in values:
@@ -418,173 +395,47 @@ class QPortfolio():
                         }
                         barColors = [colColors[x] for x in barColumns]
                         barData = barData.join(sDivData['shares'])
-                        # utils.printDataFrame(barData, 'dataframediv.txt', title='%s: %s' % (accountName,symbol), append=True)
                         qReport.addParagraph('%s: Dividends:' % symbol, qReport.getStyle('Heading2'))
                         qReport.plotBarsLineDF(barData, ybars=barColumns, yline='shares',
                             yBarsLabel='amount $', barColors=barColors,
                             yLineLabel='shares', lineColor='orange', plotHeight = 5)
+                               
+                # make capital gain page
+                firstDate = ihData[symbol].index[0]
+                cgDateRange = pd.date_range(firstDate, nowDate).date
+                sCGData = pd.DataFrame(index=cgDateRange)
+                if symbol in timeSeries and 'capitalGain' in timeSeries[symbol]:
+                    sCGData = sCGData.join(timeSeries[symbol]['capitalGain'])
+                cgColumns = ['cgReinvAmount']
+                cgColumns = list(set(cgColumns).intersection(set(ihData[symbol].columns)))
+                cgColumns.sort()
+                if len(cgColumns) > 0:
+                    sCGData = sCGData.join(ihData[symbol][cgColumns])
+                sCGData.dropna(how='all', inplace=True)
+                sCGData = sCGData.join(sData['shares'])
+                if sCGData.shape[0] > 0:
+                    sCGData.rename(columns={'cgReinvAmount': 'cgReinv'}, inplace=True)
+                    if 'capitalGain' in sCGData:
+                        sCGData['cgPosted'] = sCGData['capitalGain'] * sCGData['shares']
+                    values = ['cgPosted', 'cgReinv']
+                    availValues = []
+                    for value in values:
+                        if value in sCGData.columns:
+                            availValues.append(value)
+                    if len(availValues):
+                        barData = sCGData[availValues].dropna(how='all')
+                        barColumns = barData.columns.to_list()
+                        colColors = {
+                            'cgPosted': 'black',
+                            'cgReinv': 'blue',
+                        }
+                        barColors = [colColors[x] for x in barColumns]
+                        barData = barData.join(sCGData['shares'])
+                        qReport.addParagraph('%s: Capital Gains:' % symbol, qReport.getStyle('Heading2'))
+                        qReport.plotBarsLineDF(barData, ybars=barColumns, yline='shares',
+                            yBarsLabel='amount $', barColors=barColors,
+                            yLineLabel='shares', lineColor='orange', plotHeight = 5)
                 
-                        qReport.addPageBreak()
-
+                qReport.addPageBreak()
+            
             qReport.buildDoc()
-
-    def makeReportsOld(self, accountNames=[], update=False):
-        if len(accountNames) == 0:
-            accountNames = self.getAccountNames()
-        else:
-            accountNames = set(accountNames).intersection((self.getAccountNames()))
-
-        for accountName in accountNames:
-            # if accountName != 'ETRADE_Trust': continue
-            ihData = self.getInvestmentHistory(accountName, update=update)
-
-            # find symbols with shares left and the very first investment date
-            nowDate = datetime.now().date()
-            firstDate = nowDate
-            symbols = set()
-            for symbol, sData in ihData.items():
-                if sData.iloc[-1]['shares'] < 0.5: continue
-                symbols.add(symbol)
-                if sData.index[0] < firstDate: firstDate = sData.index[0]
-
-            # no shares left, no need to continue
-            if len(symbols) == 0: continue
-
-            # get timeseries for symbols and spread them to full date range
-            timeSeries = self.__tickers.getTimeSeries(symbols, update=update)
-            
-            # setup account data
-            dateRange = pd.date_range(firstDate, datetime.now().date()).date
-            dfAmounts = pd.DataFrame(index=dateRange)
-            dfValues = pd.DataFrame(index=dateRange)
-            # add additional data to ihData and collect sums for account data
-            for symbol in symbols:
-                # get timeseries for symbol investment data range
-                if symbol in timeSeries:
-                    sDateRange = pd.date_range(ihData[symbol].index[0], nowDate).date
-                    ts = pd.DataFrame(index=sDateRange)
-                    ts = ts.join(timeSeries[symbol]['close'])
-                    ts = ts.infer_objects(copy=False).ffill()
-                    ts = ts.infer_objects(copy=False).bfill()
-
-                # add more info columns to ihData
-                ihData[symbol]['priceBuy'] = ihData[symbol]['amount']/ihData[symbol]['shares']
-                if symbol in timeSeries:
-                    ihData[symbol] = ihData[symbol].join(ts)
-                    ihData[symbol].rename(columns={'close': 'priceClose'}, inplace=True)
-                    ihData[symbol]['value'] = ihData[symbol]['shares'] * ihData[symbol]['priceClose']
-                else:
-                    ihData[symbol]['priceClose'] = ihData[symbol]['priceBuy']
-                    ihData[symbol]['value'] = ihData[symbol]['amount']
-                ihData[symbol]['gain$'] = ihData[symbol]['value'] - ihData[symbol]['amount']
-                ihData[symbol]['gain%'] = ((ihData[symbol]['value']/ihData[symbol]['amount'])* 100.0)-100.0
-                ihData[symbol]['priceClose%'] = ((ihData[symbol]['priceClose']/ihData[symbol].iloc[0]['priceClose'])*100.0)-100.0
-
-                # now we can add to totals for summing
-                dfAmounts = dfAmounts.join(ihData[symbol]['amount'])
-                dfAmounts.rename(columns={'amount': symbol}, inplace=True)
-                dfValues = dfValues.join(ihData[symbol]['value'])
-                dfValues.rename(columns={'value': symbol}, inplace=True)
-
-            # sum all symbol values
-            allInv = pd.DataFrame(index=dateRange)
-            allInv['amount'] = dfAmounts.sum(axis=1)
-            allInv['value'] = dfValues.sum(axis=1)
-            allInv['gain$'] = allInv['value'] - allInv['amount']
-            allInv['gain%'] = ((allInv['value']/allInv['amount'])* 100.0)-100.0
-
-            lastDate = allInv.index[-1]
-            totalPayed = allInv.at[lastDate, 'amount']
-            
-            reportName = accountName.replace(' ','_')
-            qReport = Report(reportName)
-
-            qReport.addParagraph(accountName+':', qReport.getStyle('Heading1'))
-
-            # report holdings
-            rows = []
-            for symbol in symbols:
-                sData = ihData[symbol]
-                payed = sData.at[lastDate, 'amount']
-                rowData = {'symbol': symbol,
-                    'Dist %': (payed/totalPayed)*100.0,
-                    'payed': payed,
-                    'value': sData.at[lastDate, 'value'],
-                    'gain $': sData.at[lastDate, 'gain$'],
-                    'gain %': sData.at[lastDate, 'gain%']}
-                rows.append(rowData)
-            if len(rows) == 0:
-                pp(rows)
-                qReport.addPageBreak()
-                continue
-            dfHoldings = pd.DataFrame(rows)
-            dfHoldings.sort_values(by='Dist %', inplace=True, ascending=False)
-            totalRow = {'symbol': 'Total:',
-                    'Dist %': dfHoldings['Dist %'].sum(),
-                    'payed': allInv.at[lastDate, 'amount'],
-                    'value': allInv.at[lastDate, 'value'],
-                    'gain $': allInv.at[lastDate, 'gain$'],
-                    'gain %': allInv.at[lastDate, 'gain%']}
-            dfHoldings.loc[len(dfHoldings)] = totalRow
-            qReport.addParagraph('Holdings as per %s:' % lastDate, qReport.getStyle('Heading2'))
-            qReport.addTable(dfHoldings.round(4))
-
-            qReport.plotLineDF(allInv, y = ['amount', 'value'], labels= ['payed', 'value'], colors=['green', 'blue'], height=2.5)
-            qReport.plotLineDF(allInv, y = ['gain$'], labels= ['gain $'], divLine=allInv.iloc[0]['gain$'], colors=['blue'], height=2.5)
-            qReport.plotLineDF(allInv, y = ['gain%'], labels= ['gain %'], divLine=0.0, colors=['blue'], height=2.5)
-            
-            qReport.addPageBreak()
-
-            # report symbols
-            profileData = self.__tickers.getProfile(ihData.keys(), update=update)
-            ehData = self.getEventHistory(accountName, update=update)
-            for symbol in symbols:
-                if symbol != 'VMFXX': continue
-
-                sData = ihData[symbol]
-                # make symbol intro page
-                if symbol in profileData:
-                    name = profileData[symbol]['name']
-                    columns = ['type', 'acronym', 'sector', 'industry', 'country', 'city', 'state', 'fundFamily', 'categoryName']
-                    row = {}
-                    for info in columns:
-                        if info in profileData[symbol]:
-                            row[info] = profileData[symbol][info]
-                    profile = pd.DataFrame([row], columns=columns).dropna(axis=1)
-                    symbolLine = '%s: %s' % (symbol, name)
-                    qReport.addParagraph(symbolLine, qReport.getStyle('Heading1'))
-                    qReport.addTable(profile)
-                    if 'info' in profileData[symbol]:
-                        qReport.addSpace(0.1)
-                        qReport.addParagraph(profileData[symbol]['info'], qReport.getStyle('BodyText'))
-                else:
-                    symbolLine = '%s: No profile data found' % symbol
-                    qReport.addParagraph(symbolLine, qReport.getStyle('Heading1'))
-                
-                qReport.plotLineDF(sData, y = ['amount', 'value'], labels= ['payed', 'value'], colors=['green', 'blue'], height=5)
-
-                qReport.addPageBreak()
-
-                # make Gain and Price Page
-                qReport.addParagraph(symbolLine, qReport.getStyle('Heading1'))
-
-                qReport.addParagraph('Gain and Price:', qReport.getStyle('Heading2'))
-
-                qReport.plotLineDF(sData, y = ['gain$'], labels= ['gain $'], colors=['blue'], height=5)
-                qReport.plotLineDF(sData, y = ['gain%', 'priceClose%'], labels= ['gain %', 'price %'], divLine=0.0, colors=['blue', 'green'], height=5)
-                
-                qReport.addPageBreak()
-
-                # make dividend and capital gain page
-                # print(accountName, symbol)
-                # print(self.getShareActions(accountName, symbol))
-
-
-            qReport.buildDoc()
-
-
-        
-
-
-
-        

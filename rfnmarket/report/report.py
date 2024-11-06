@@ -136,6 +136,32 @@ class Report():
         self.story.append( self.__fig2image(chartFig) )
         plt.close(chartFig)
 
+    def plotBarsDF(self, dataFrame, ybars,
+            barLabels=None, yBarsLabel=None, barsWidth=0.5, barColors=None,
+            divLine=None, grid=True, plotHeight=3.0):
+        dataFrame = dataFrame.copy()
+        if isinstance(dataFrame.index[0],type(datetime.now().date())):
+            dataFrame.index = pd.to_datetime(dataFrame.index)
+            dataFrame.index = dataFrame.index.strftime('%m-%d-%y')
+        
+        # create plot figure
+        chartFig, ax = plt.subplots(dpi=300, figsize=(7, plotHeight))
+        
+        # plot bar data
+        dataFrame.plot(y=ybars, ax=ax, kind='bar', label=barLabels, color=barColors, width=barsWidth)
+        if yBarsLabel != None:
+            ax.set_ylabel(yBarsLabel)
+        if divLine != None:
+            ax.axhline(y=divLine, color='green', linestyle='--')
+        ax.set_axisbelow(True)
+        plt.xticks(rotation=45, fontsize=6)
+        plt.yticks(fontsize=6)
+        plt.grid(grid)
+
+        # add figure to story
+        self.story.append( self.__fig2image(chartFig) )
+        plt.close(chartFig)
+
     def plotBarsLineDF(self, dataFrame, ybars, yline,
             barLabels=None, yBarsLabel=None, barsWidth=0.5, barColors=None,
             yLineLabel=None, lineColor=None,
