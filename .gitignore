@@ -1,7 +1,9 @@
 /.venv
 /database
+/reports
 /docs
 /testscripts
+/academy
 __pycache__
 *.db
 *.pickle
