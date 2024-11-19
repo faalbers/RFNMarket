@@ -113,6 +113,26 @@ class Catalog():
                 },
             },
         },
+        'earnings': {
+            'info': 'ticker earnings',
+            'postProcs': [[__dropParent, {}]],
+            'sets': {
+                'earnings': {
+                    'postProcs': [[__mergeTables, {}]],
+                    'scrapes': {
+                        scrape.yahoo.QuoteSummary: {
+                            'earnings': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['earningsChart', 'earningsChart', {}],
+                                    ['financialsChart', 'financialsChart', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
         'epstest': {
             'info': 'ticker company profile information',
             'postProcs': [[__dropParent, {}]],
@@ -402,6 +422,7 @@ class Catalog():
                                     ['beta', 'beta', {}],
                                     ['pegRatio', 'pegRatio', {}],
                                     ['yield', 'yield', {}],
+                                    ['sharesOutstanding', 'sharesOutstanding', {}],
                                 ],
                             },
                             'summaryDetail': {
