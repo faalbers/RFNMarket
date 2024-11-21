@@ -1,4 +1,4 @@
-import sqlite3, json
+import sqlite3, json, shutil, glob, os
 from pprint import pp
 import pandas as pd
 import numpy as np
@@ -50,6 +50,28 @@ class Database():
         self.connection.commit()
         log.info('Database: call commit: %s' % self.name)
     
+    def backup(self):
+        filename ='database/%s.db' % self.name
+        filename_backup ='database/backup/%s_01.db' % self.name
+        
+        backup_files = glob.glob('database/backup/%s_*' % self.name)
+        backup_files = [os.path.normpath(filename).replace('\\', '/') for filename in backup_files]
+        backup_files.sort(reverse=True)
+        if filename_backup in backup_files:
+            for filename_old in backup_files:
+                splits = filename_old.split(self.name)
+                new_version = int(splits[1].strip('_').strip('.db'))+1
+                new_version = "{:02d}".format(new_version)
+                filename_new = 'database/backup/%s_%s.db' % (self.name, new_version)
+                shutil.move(filename_old, filename_new)
+
+        try:
+            shutil.copyfile(filename, filename_backup)
+            log.info(f"File backup from {filename} to {filename_backup}")
+        except FileNotFoundError:
+            pass
+
+
     def tableWrite(self, tableName, data, keyName, method='append'):
         # make sure it is a dict
         if not isinstance(data, dict):
