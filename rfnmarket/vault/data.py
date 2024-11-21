@@ -7,7 +7,9 @@ import copy
 from .catalog import Catalog
 
 class Data():
-    def __init__(self):
+    def __init__(self, log_level=None):
+        if log_level != None:
+            log.initLogger(logLevel=log_level)
         self.catalog = Catalog()
         self.databases = {}
     
@@ -35,19 +37,26 @@ class Data():
                     for scraperClass, scraperData in dfData['scrapes'].items():
                         scraperClasses.append((scraperClass, list(scraperData.keys())))
 
+        updateScrapers = {}
         for ssData in scraperClasses:
             scraperClass = ssData[0]
-            tableNames = []
+            if not scraperClass in updateScrapers:
+                updateScrapers[scraperClass] = []
             for tableName in ssData[1]:
-                tableNames += scraperClass.getTableNames(tableName)
-            tableNames = list(set(tableNames))
-            scraperClass(keyValues, tables=tableNames, forceUpdate=forceUpdate)
+                updateScrapers[scraperClass] += scraperClass.getTableNames(tableName)
+        
+        # update scrapers with tables
+        for scraperClass, tableNames in updateScrapers.items():
+            # print(scraperClass)
+            # print(tableNames)
+            scraperClass(keyValues, tables=list(set(tableNames)), forceUpdate=forceUpdate)
     
     def getData(self, catalogs=[], keyValues=[], update=False, forceUpdate=False, catalogDB=None):
         # make sure all keyValues are capitalized
         keyValues = [x.upper() for x in keyValues]
         
         if update or forceUpdate: self.update(catalogs, keyValues, forceUpdate=forceUpdate)
+
         mainData = {}
         for catalog in catalogs:
             if catalogDB != None:
