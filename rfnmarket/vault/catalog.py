@@ -133,39 +133,36 @@ class Catalog():
                 },
             },
         },
-        'epstest': {
-            'info': 'ticker company profile information',
-            'postProcs': [[__dropParent, {}]],
+        'test': {
+            'info': 'ticker earnings',
+            # 'postProcs': [[__dropParent, {}]],
             'sets': {
-                'eps': {
-                    'postProcs': [[__mergeTables, {}]],
+                'earnings': {
+                    # 'postProcs': [[__mergeTables, {}]],
                     'scrapes': {
-                        scrape.etrade.Quote: {
-                            'equity': {
+                        scrape.yahoo.QuoteSummary: {
+                            'calendarEvents': {
                                 'keyValues': True,
                                 'columnSettings': [
-                                    ['eps', 'eps', {}],
+                                    ['all', '', {}],
                                 ],
                             },
-                        },
-                        scrape.yahoo.QuoteSummary: {
-                            'defaultKeyStatistics': {
+                            'earnings': {
                                 'keyValues': True,
                                 'columnSettings': [
-                                    ['trailingEps', 'trailingEps', {}],
-                                    ['forwardEps', 'forwardEps', {}],
+                                    ['all', '', {}],
                                 ],
                             },
                             'earningsHistory': {
                                 'keyValues': True,
                                 'columnSettings': [
-                                    ['history', 'history', {}],
+                                    ['all', '', {}],
                                 ],
                             },
                             'earningsTrend': {
                                 'keyValues': True,
                                 'columnSettings': [
-                                    ['trend', 'trend', {}],
+                                    ['all', '', {}],
                                 ],
                             },
                         },
@@ -249,31 +246,6 @@ class Catalog():
                                     ['shares', 'shares', {}],
                                     ['price', 'price', {}],
                                     ['costBasis', 'costBasis', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
-            },
-        },
-        'ep': {
-            'info': 'ep',
-            'sets': {
-                'ep': {
-                    'postProcs': [[__mergeTables, {}]],
-                    'scrapes': {
-                        scrape.yahoo.QuoteSummary: {
-                            'defaultKeyStatistics': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['forwardPE', 'forwardPE', {}],
-                                ],
-                            },
-                            'summaryDetail': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['forwardPE', 'forwardPE2', {}],
-                                    ['trailingPE', 'trailingPE', {}],
                                 ],
                             },
                         },
@@ -420,6 +392,7 @@ class Catalog():
                                     ['forwardEps', 'forwardEps', {}],
                                     ['forwardPE', 'forwardPE_A', {}],
                                     ['beta', 'beta', {}],
+                                    ['beta3Year', 'beta3Year', {}],
                                     ['pegRatio', 'pegRatio', {}],
                                     ['yield', 'yield', {}],
                                     ['sharesOutstanding', 'sharesOutstanding', {}],

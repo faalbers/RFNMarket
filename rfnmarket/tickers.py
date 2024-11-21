@@ -1,20 +1,23 @@
 from .utils import log, utils
 from .vault import Data
-from .ticker import Ticker
+from .portfolio import Portfolio
 import pandas as pd
 
 class Tickers():
-    def __init__(self, logLevel=log.WARNING):
-        log.initLogger(logLevel=logLevel)
+    def __init__(self, log_level=None):
+        if log_level != None:
+            log.initLogger(logLevel=log_level)
         self.data = Data()
 
     def update_data_us(self):
         us_symbols = self.get_us_symbols()
-        catalogs = Ticker.get_catalogs()
-        self.data.update(catalogs, us_symbols)
+        self.data.update(Portfolio.get_catalogs(), us_symbols)
 
     def get_us_symbols(self):
-        return self.data.getData(['ussymbols'])['ussymbols']
+        symbols = self.data.getData(['ussymbols'])['ussymbols']
+        symbols.sort()
+        return symbols
+        
     
     def get_timeseries(self, symbols, start_date=None, end_date=None, update=False):
         timeseries_data = self.data.getData(['timeSeries'], keyValues=symbols, update=update)['timeSeries']['chart']

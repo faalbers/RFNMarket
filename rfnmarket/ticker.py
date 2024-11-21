@@ -12,6 +12,11 @@ class Ticker():
         self.symbol = symbol
         self.__data = Data()
     
+    def test(self, update=False):
+        data = self.__data.getData(['test'], keyValues=[self.symbol], update=update)['test']
+        with open('test.txt', 'w') as f:
+            pp(data, f)
+
     def get_timeseries(self, start_date=None, end_date=None, update=False):
         timeseries_data = self.__data.getData(['timeSeries'], keyValues=[self.symbol], update=update)['timeSeries']['chart']
         if not self.symbol in timeseries_data: return None
@@ -83,6 +88,12 @@ class Ticker():
         shares_outstanding = self.__data.getData(['statistics'], [self.symbol], update=update)['statistics'][self.symbol]
         shares_outstanding = shares_outstanding['sharesOutstanding']
         return earnings_ttm / shares_outstanding
+    
+    def get_pe_ttm(self, update=False):
+        eps_ttm = self.get_eps_ttm(update=update)
+        if eps_ttm is None: return None
+        adj_close = self.get_adjusted_close(update=update).iloc[-1]
+        return adj_close / eps_ttm
 
     def get_eps_quarterly(self, update=False):
         # data = self.__data.getData(['earnings'], [self.symbol], update=update)['earnings'][self.symbol]['earningsChart']['quarterly']
@@ -96,6 +107,7 @@ class Ticker():
 
     def get_profile(self, update = False):
         data = self.__data.getData(['profile'], [self.symbol], update=update)['profile']
+        if not self.symbol in data['profile']: return {}
         # get all mics and acronyms that have US country code and update profile
         mics = data['mic']['ISO10383_MIC']
         usacronyms = set()
@@ -171,6 +183,9 @@ class Ticker():
                 data['marketCapCategory'] = 'Large Cap'
             else:
                 data['marketCapCategory'] = 'Mega Cap'
+        else:
+            data['marketCap'] = None
+            data['marketCapCategory'] = None
         
         if len(symbolGICS) > 0:
             data = {**data,**symbolGICS}
