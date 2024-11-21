@@ -50,6 +50,9 @@ class Chart(Base):
         # guess there is nothing to update
         if len(symbolPeriods) == 0: return
 
+        # lets backup the database first
+        self.db.backup()
+
         log.info('Chart update')
         log.info('symbols processing: %s' % len(symbolPeriods))
 

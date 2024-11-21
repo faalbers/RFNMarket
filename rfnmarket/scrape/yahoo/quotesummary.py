@@ -107,6 +107,9 @@ class QuoteSummary(Base):
         log.info('requested modules  : %s' % " ".join(tables))
         log.info('symbols processing : %s' % len(symbolModules))
 
+        # lets backup the database first
+        self.db.backup()
+
         # update procs need these
         self.symbols = [] # accessed by index
         self.symbolModules = symbolModules

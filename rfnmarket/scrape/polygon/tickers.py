@@ -30,6 +30,11 @@ class Tickers(Base):
                 if 'types' in status: lastUpdateTypes = status['types']
                 if 'tickers' in status: lastUpdateTickers = status['tickers']
 
+        # lets backup the database first
+        if (lastUpdateTypes == None or lastUpdateTypes <= updateTime) or \
+            (lastUpdateTickers == None or lastUpdateTickers <= updateTime):
+            self.db.backup()
+        
         if lastUpdateTypes == None or lastUpdateTypes <= updateTime:
             log.info('Polygon types updating')
             if lastUpdateTypes == None:

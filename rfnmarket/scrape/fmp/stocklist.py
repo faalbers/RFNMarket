@@ -27,6 +27,9 @@ class StockList(Base):
             updateTime = int(datetime.now().timestamp() - (60*60*24*31*6))
             if lastUpdateTime > updateTime: return
 
+        # lets backup the database first
+        self.db.backup()
+
         log.info('FMP StockList updating')
         if lastUpdateTime != None:
             log.info('Last time updated: %s' % datetime.fromtimestamp(lastUpdateTime))
