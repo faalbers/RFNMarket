@@ -16,7 +16,8 @@ class QPortfolio():
     __allActions = __sharesIn+__sharesOut+__receiveDividend
 
     def __init__(self, qifFile):
-        self.__tickers = Tickers(logLevel=log.DEBUG)
+        # self.__tickers = Tickers(logLevel=log.DEBUG)
+        self.__tickers = Tickers()
         qif = QIF(qifFile)
         qAccounts = qif.getAcounts(accType='Invst')
         qSecurities = qif.getSecurities()
