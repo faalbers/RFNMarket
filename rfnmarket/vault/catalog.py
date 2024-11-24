@@ -1,5 +1,8 @@
 from .. import scrape
+from ..utils import database
 from pprint import pp
+import queue, math
+from multiprocessing import Pool, cpu_count
 
 class Catalog():
     def __init__(self):
@@ -36,16 +39,66 @@ class Catalog():
         return list(keyValues)
 
     @staticmethod
+    def getTimeSeries_proc(params):
+        scrape_class, key_references = params
+        db = database.Database(scrape_class.dbName)
+        timeTables = {}
+        for key_reference in key_references:
+            timeTables[key_reference[0]] = db.tableRead(key_reference[1])
+        return timeTables
+    
+    @staticmethod
     def __getTimeSeries(self, data, tableNames=[], scrapeClass=None):
         if 'table_reference' not in data: return {}
         db = self.getScrapeDB(scrapeClass)
-        timeTables = {}
-        for keyValue, keyData in data['table_reference'].items():
-            for tableName in keyData.keys():
-                if not tableName in timeTables:
-                    timeTables[tableName] = {}
-                timeTables[tableName][keyValue] = db.tableRead(keyData[tableName])
-        return timeTables
+        time_tables = {}
+        if len(data['table_reference']) < 120:
+            print('Single Process')
+            for keyValue, keyData in data['table_reference'].items():
+                for tableName in keyData.keys():
+                    if not tableName in time_tables:
+                        time_tables[tableName] = {}
+                    time_tables[tableName][keyValue] = db.tableRead(keyData[tableName])
+        else:
+            print('Multi Process')
+            task_queue = queue.Queue()
+            tables = {}
+            cpus = 8
+            for key_value, key_data in data['table_reference'].items():
+                for table_name in key_data.keys():
+                    if not table_name in tables:
+                        tables[table_name] = []
+                    tables[table_name].append((key_value, key_data[table_name]))
+            for table, key_references in tables.items():
+                if not table in time_tables:
+                    time_tables[table] = {}
+                # entries_per_proc = (min(math.ceil(len(key_values) / cpu_count()), 100))
+                entries_per_proc = math.ceil(len(key_references) / cpus)
+                print(len(key_references))
+                print('entries per proc: %s' % entries_per_proc)
+                for key_reference in key_references: task_queue.put(key_reference)
+                with Pool(processes=cpus) as pool:
+                    while not task_queue.empty():
+                        # build a list of chunks to process in parallel
+                        chunk = []
+                        for proc_idx in range(cpus):
+                            chunk_key_values = []
+                            for _ in range(entries_per_proc):
+                                if task_queue.empty(): break
+                                chunk_key_values.append(task_queue.get())
+                            if len(chunk_key_values) == 0: break
+                            # add a params tuple to the chunk
+                            chunk.append((scrapeClass, chunk_key_values))
+                        # process the chunk in parallel
+                        results = pool.map(Catalog.getTimeSeries_proc, chunk)
+                
+                        # concatenate the results into the data series
+                        for result in results:
+                            time_tables[table] = {**time_tables[table], **result}
+                        
+                        # delete the results to free up memory
+                        del(results)
+        return time_tables
 
     @staticmethod
     def __mergeTables(self, data, mergeName=None):
