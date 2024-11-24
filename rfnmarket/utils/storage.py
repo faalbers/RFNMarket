@@ -1,7 +1,7 @@
 import os, pickle
 import shutil
 from datetime import datetime
-# from . import log
+from . import log
 
 def get(name):
     fileName = name+'.pickle'
