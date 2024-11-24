@@ -27,6 +27,7 @@ class Database():
     def __init__(self, name):
         self.name = name
         self.connection = sqlite3.connect('database/%s.db' % name)
+        self.__test()
         log.info('Database: open  : %s' % self.name)
 
     def __del__(self):
@@ -34,6 +35,14 @@ class Database():
         log.info('Database: del commit: %s' % self.name)
         self.connection.close()
         log.info('Database: del close : %s' % self.name)
+    
+    def __test(self):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT 12")
+        result = cursor.fetchone()[0]
+        cursor.close()
+        if result != 12:
+            raise Exception('Database: test failed: %s' % self.name)
     
     def close(self):
         self.connection.close()
@@ -268,6 +277,8 @@ class Database():
     def getTableNames(self):
         cursor = self.connection.cursor()
         names = [ x[0] for x in cursor.execute("SELECT name FROM sqlite_schema WHERE type='table'")]
+        # print(self.name)
+        # print(names)
         cursor.close()
         return names
     
