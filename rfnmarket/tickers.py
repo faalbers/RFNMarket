@@ -2,6 +2,8 @@ from .utils import log, utils
 from .vault import Data
 from .portfolio import Portfolio
 import pandas as pd
+import numpy as np
+from datetime import datetime
 
 class Tickers():
     def __init__(self, log_level=None):
@@ -21,20 +23,26 @@ class Tickers():
     
     def get_timeseries(self, symbols, start_date=None, end_date=None, update=False):
         timeseries_data = self.data.getData(['timeSeries'], keyValues=symbols, update=update)['timeSeries']['chart']
-        if start_date == None:
-            start_date = df.index[0]
-        else:
-            start_date = pd.to_datetime(start_date)
-        if end_date == None:
-            end_date = df.index[-1]
-        else:
-            end_date = pd.to_datetime(end_date)
+        if not start_date: start_date = pd.to_datetime(start_date)
+        if not end_date: end_date = pd.to_datetime(end_date)
         data = {}
         for symbol, ts_data in timeseries_data.items():
-            df = pd.DataFrame(ts_data).T
-            df.sort_index(inplace=True)
-            df.index = pd.to_datetime(df.index, unit='s')
-            df = df.loc[start_date:end_date]
+            print(datetime.fromtimestamp(list(ts_data.keys())[0]))
+            df_ts_data = pd.DataFrame(ts_data).T
+            df_ts_data.sort_index(inplace=True)
+            df_ts_data.index = pd.to_datetime(df_ts_data.index, unit='s')
+            if start_date and end_date:
+                df_ts_data = df_ts_data.loc[start_date:end_date]
+            elif start_date:
+                df_ts_data = df_ts_data.loc[start_date:]
+            elif end_date:
+                df_ts_data = df_ts_data.loc[:end_date]
+            df = df_ts_data[['open', 'high', 'low', 'close', 'volume']].astype(np.float64)
+            if 'dividend' in df_ts_data.columns:
+                df['dividend'] = df_ts_data['dividend'].astype(np.float64)
+            if 'splitRatio' in df_ts_data.columns:
+                df['splitRatio'] = df_ts_data['splitRatio']
+                df[['numerator', 'denominator']] = df_ts_data[['numerator', 'denominator']].astype(np.float64)
             data[symbol] = df
         return data
 
