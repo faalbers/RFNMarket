@@ -19,6 +19,12 @@ class Portfolio():
         data = params[1]
         chart = data.getData(['timeSeries'], keyValues=symbols)['timeSeries']['chart']
         return chart
+
+    def get_beta_5y_monthly(self, update=False):
+        ts_symbols = self.__symbols.copy()
+        if 'SPY' not in ts_symbols:
+            ts_symbols.append('SPY')
+        timeseries_data = self.__data.getData(['timeSeries'], keyValues=ts_symbols)['timeSeries']['chart']
     
     @staticmethod
     def get_beta_5y_monthly_proc(params):
@@ -141,7 +147,10 @@ class Portfolio():
 
         # create a list of allocations, one for each symbol
         # each allocation is equal to 1 / number of symbols
-        self.__allocations = [1.0/len(self.__symbols)] * len(self.__symbols)
+        if len(self.__symbols) == 0:
+            self.__allocations = []
+        else:
+            self.__allocations = [1.0/len(self.__symbols)] * len(self.__symbols)
 
         # if update is True, call update on the data object
         # this will update all the data in the database
@@ -151,9 +160,6 @@ class Portfolio():
     def get_timeseries(self, start_date=None, end_date=None, update=False):
         timeseries_data = self.__multi_proc(self.__symbols, self.get_timeseries_proc)
 
-    def get_beta_5y_monthly(self, update=False):
-        beta_5y_monthly = self.__multi_proc(self.__symbols, self.get_beta_5y_monthly_proc)
-        return beta_5y_monthly
 
     def get_beta(self, update=False):
         statistics = self.__data.getData(['statistics'], self.__symbols, update=update)['statistics']
@@ -172,9 +178,12 @@ class Portfolio():
             if not 'sharesOutstanding' in data['statistics'][symbol]: continue
             
             qData = data['earnings'][symbol]['financialsChart']['quarterly']
-            earnings_ttm = pd.DataFrame(qData)['earnings'].dropna().sum()
+            earnings_ttm = pd.DataFrame(qData)
+            if earnings_ttm.shape[0] == 0: continue
+            earnings_ttm = earnings_ttm['earnings'].dropna().sum()
             
             shares_outstanding = data['statistics'][symbol]['sharesOutstanding']
+            if shares_outstanding == 0: continue
             if symbol == 'GOOG':
                 print(earnings_ttm, shares_outstanding)
                 print(earnings_ttm / shares_outstanding)

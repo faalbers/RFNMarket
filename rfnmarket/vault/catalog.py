@@ -52,15 +52,13 @@ class Catalog():
         if 'table_reference' not in data: return {}
         db = self.getScrapeDB(scrapeClass)
         time_tables = {}
-        if len(data['table_reference']) < 120:
-            print('Single Process')
+        if len(data['table_reference']) < 105:
             for keyValue, keyData in data['table_reference'].items():
                 for tableName in keyData.keys():
                     if not tableName in time_tables:
                         time_tables[tableName] = {}
                     time_tables[tableName][keyValue] = db.tableRead(keyData[tableName])
         else:
-            print('Multi Process')
             task_queue = queue.Queue()
             tables = {}
             cpus = 8
@@ -72,7 +70,6 @@ class Catalog():
             for table, key_references in tables.items():
                 if not table in time_tables:
                     time_tables[table] = {}
-                # entries_per_proc = (min(math.ceil(len(key_values) / cpu_count()), 100))
                 entries_per_proc = math.ceil(len(key_references) / cpus)
                 print(len(key_references))
                 print('entries per proc: %s' % entries_per_proc)
@@ -166,6 +163,42 @@ class Catalog():
                 },
             },
         },
+        'recommendation': {
+            # 'info': 'data to analyze recommendation',
+            'postProcs': [[__dropParent, {}]],
+            'sets': {
+                'earnings': {
+                    'postProcs': [[__mergeTables, {}]],
+                    'scrapes': {
+                        scrape.yahoo.QuoteSummary: {
+                            'financialData': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['recommendationKey', 'recommendationKey', {}],
+                                    ['numberOfAnalystOpinions', 'numberOfAnalystOpinions', {}],
+                                    ['currentPrice', 'currentPrice', {}],
+                                ],
+                            },
+                            'summaryDetail': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['forwardPE', 'forwardPE_sd', {}],
+                                    ['trailingPE', 'trailingPE', {}],
+                                ],
+                            },
+                            'defaultKeyStatistics': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['forwardEps', 'forwardEps', {}],
+                                    ['trailingEps', 'trailingEps', {}],
+                                    ['forwardPE', 'forwardPE_dks', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
         'earnings': {
             'info': 'ticker earnings',
             'postProcs': [[__dropParent, {}]],
@@ -179,43 +212,6 @@ class Catalog():
                                 'columnSettings': [
                                     ['earningsChart', 'earningsChart', {}],
                                     ['financialsChart', 'financialsChart', {}],
-                                ],
-                            },
-                        },
-                    },
-                },
-            },
-        },
-        'test': {
-            'info': 'ticker earnings',
-            # 'postProcs': [[__dropParent, {}]],
-            'sets': {
-                'earnings': {
-                    # 'postProcs': [[__mergeTables, {}]],
-                    'scrapes': {
-                        scrape.yahoo.QuoteSummary: {
-                            'calendarEvents': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                            'earnings': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                            'earningsHistory': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
-                                ],
-                            },
-                            'earningsTrend': {
-                                'keyValues': True,
-                                'columnSettings': [
-                                    ['all', '', {}],
                                 ],
                             },
                         },
