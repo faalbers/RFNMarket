@@ -15,8 +15,8 @@ class Tickers():
         us_symbols = self.get_us_symbols()
         self.data.update(Portfolio.get_catalogs(), us_symbols)
 
-    def get_us_symbols(self):
-        symbols = self.data.getData(['ussymbols'])['ussymbols']
+    def get_us_symbols(self, update=False):
+        symbols = self.data.getData(['ussymbols'], update=update)['ussymbols']
         symbols.sort()
         return symbols
         
