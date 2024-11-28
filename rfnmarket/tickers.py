@@ -27,7 +27,6 @@ class Tickers():
         if not end_date: end_date = pd.to_datetime(end_date)
         data = {}
         for symbol, ts_data in timeseries_data.items():
-            print(datetime.fromtimestamp(list(ts_data.keys())[0]))
             df_ts_data = pd.DataFrame(ts_data).T
             df_ts_data.sort_index(inplace=True)
             df_ts_data.index = pd.to_datetime(df_ts_data.index, unit='s')
@@ -37,7 +36,7 @@ class Tickers():
                 df_ts_data = df_ts_data.loc[start_date:]
             elif end_date:
                 df_ts_data = df_ts_data.loc[:end_date]
-            df = df_ts_data[['open', 'high', 'low', 'close', 'volume']].astype(np.float64)
+            df = df_ts_data[['open', 'high', 'low', 'close', 'adjclose', 'volume']].astype(np.float64)
             if 'dividend' in df_ts_data.columns:
                 df['dividend'] = df_ts_data['dividend'].astype(np.float64)
             if 'splitRatio' in df_ts_data.columns:
