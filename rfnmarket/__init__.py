@@ -1,4 +1,4 @@
-from .tickers import Tickers
+from .market import Market
 from .ticker import Ticker
 from .portfolio import Portfolio
 from .analysis import Analysis

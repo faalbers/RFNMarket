@@ -1,4 +1,4 @@
-from . import Tickers
+from . import Market
 from .report import Report
 from .utils import QIF, log, utils
 import pandas as pd
@@ -16,8 +16,8 @@ class QPortfolio():
     __allActions = __sharesIn+__sharesOut+__receiveDividend
 
     def __init__(self, qifFile):
-        # self.__tickers = Tickers(logLevel=log.DEBUG)
-        self.__tickers = Tickers()
+        # self.__tickers = Market(logLevel=log.DEBUG)
+        self.__tickers = Market()
         qif = QIF(qifFile)
         qAccounts = qif.getAcounts(accType='Invst')
         qSecurities = qif.getSecurities()

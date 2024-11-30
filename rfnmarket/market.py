@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
-class Tickers():
+class Market():
     def __init__(self, log_level=None):
         if log_level != None:
             log.initLogger(logLevel=log_level)

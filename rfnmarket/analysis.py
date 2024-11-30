@@ -1,4 +1,4 @@
-from . import Tickers
+from . import Market
 import pandas as pd
 from .utils import GICS, utils
 from pprint import pp
@@ -6,7 +6,7 @@ from pprint import pp
 
 class Analysis():
     def __init__(self):
-        self.tickers = Tickers()
+        self.tickers = Market()
 
     def test(self):
         marketCaps = ['Small Cap', 'Mid Cap']
