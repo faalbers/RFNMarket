@@ -66,10 +66,16 @@ class Database():
         backup_files = glob.glob('database/backup/%s_*' % self.name)
         backup_files = [os.path.normpath(filename).replace('\\', '/') for filename in backup_files]
         backup_files.sort(reverse=True)
+        
         if filename_backup in backup_files:
+            # move files up
             for filename_old in backup_files:
                 splits = filename_old.split(self.name)
-                new_version = int(splits[1].strip('_').strip('.db'))+1
+                old_version = int(splits[1].strip('_').strip('.db'))
+                if old_version > 4:
+                    os.remove(filename_old)
+                    continue
+                new_version = old_version + 1
                 new_version = "{:02d}".format(new_version)
                 filename_new = 'database/backup/%s_%s.db' % (self.name, new_version)
                 shutil.move(filename_old, filename_new)
