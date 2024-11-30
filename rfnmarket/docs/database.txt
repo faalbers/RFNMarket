@@ -20,10 +20,10 @@ Tables:
 
     'table_reference':
     These tables have a primary key column (unique values) and multiple TEXT typed columns named tableName,
-    The rows contain the key value (mostly ticker symbol) and last updated time stamp for each named table column
+    The rows contain the key value (mostly ticker symbol) and the reference table name for that key value
     example:
-    keySymbol STRING PRIMARY KEY, {table group name} STRING, {table group name} STRING, ...
-    'VITAX', 'chart_VITAX', 'earnings_VITAX', ...
+        keySymbol STRING PRIMARY KEY, {table group name} STRING, {table group name} STRING, ...
+        'VITAX', 'chart_VITAX', 'earnings_VITAX', ...
 
     data tables:
     these tables have a primary key column (unique values) and columns with named parameters and appropriate typed.

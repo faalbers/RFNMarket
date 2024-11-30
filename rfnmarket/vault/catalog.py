@@ -496,6 +496,25 @@ class Catalog():
                 },
             },
         },
+        'ticker_news': {
+            'info': 'ticker news collection timeseries',
+            'postProcs': [[__dropParent, {}]],
+            'sets': {
+                'news': {
+                    'postProcs': [[__getTimeSeries, {'scrapeClass': scrape.finviz.Ticker_News}]],
+                    'scrapes': {
+                        scrape.finviz.Ticker_News: {
+                            'table_reference': {
+                                'keyValues': True,
+                                'columnSettings': [
+                                    ['news', 'news', {}],
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
         'saved': {
             'info': 'saved database',
             'sets': {
