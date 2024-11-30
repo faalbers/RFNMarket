@@ -1,7 +1,7 @@
-from rfnmarket import Tickers
+from rfnmarket import Market
 from rfnmarket import log
 
-tickers = Tickers(log_level=log.DEBUG)
+tickers = Market(log_level=log.DEBUG)
 
 ts_data = tickers.get_timeseries(['AAPL'], update=True)
 symbols = tickers.get_us_symbols()
